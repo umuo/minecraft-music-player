@@ -1,0 +1,37 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.143'
+}
+
+group = rootProject.group
+version = rootProject.version
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = rootProject.neo_version
+    parchment {
+        mappingsVersion = rootProject.parchment_mappings_version
+        minecraftVersion = rootProject.parchment_minecraft_version
+    }
+}
+
+dependencies {
+    testRuntimeOnly 'com.google.code.gson:gson:2.10.1'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(Test).configureEach {
+    failOnNoDiscoveredTests = false
+}
+
+tasks.register('catalogSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Calls the live Kugou and NetEase catalog endpoints and validates normalized results.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.ui.catalog.CatalogIntegrationProbe'
+    dependsOn testClasses
+}

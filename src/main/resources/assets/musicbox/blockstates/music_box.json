@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "musicbox:block/music_box"
+    }
+  }
+}
