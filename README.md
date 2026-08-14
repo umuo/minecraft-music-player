@@ -20,7 +20,7 @@ The music box now keeps a server-authoritative, persisted queue with add, remove
 track advancement. Track and playlist covers are downloaded asynchronously from allow-listed platform image
 hosts and released with the browser screen. Synchronized LRC lyrics are requested by the server through the private resolver
 and rendered above the HUD hotbar. MP3 data is decoded to PCM and played through Minecraft's OpenAL channel at
-the music box position with distance attenuation. Safe LX source compatibility remains a follow-up milestone.
+the music box position with distance attenuation. LX sources are supported through the separate `lx-source-bridge` process.
 
 ## In-game browser
 
@@ -108,6 +108,39 @@ LX JavaScript sources are deliberately not evaluated in the Minecraft process: a
 reliably prevent filesystem, network, reflection, or credential access once bridged to Java. Run a source you
 trust in a separately permissioned local bridge and point the server's `playbackApiUrl` at its loopback endpoint.
 The server sends only the documented `musicUrl` and `lyric` actions and adds the configured bearer token.
+
+The included [LX Source Bridge](lx-source-bridge/README.md) accepts one custom-source JS URL directly, including a
+GitHub raw URL; no manual HTTP API conversion is needed:
+
+```bash
+cd lx-source-bridge
+npm install
+SOURCE_URL='https://raw.githubusercontent.com/Macrohard0001/lx-ikun-music-sources/main/V260810/%E6%8E%A8%E8%8D%90/%E5%A2%A8%E6%BE%9C%E8%81%9A%E5%90%88%E9%9F%B3%E6%BA%90%20v2.0.0.js' \
+BRIDGE_TOKEN='replace-with-a-long-random-secret' \
+ALLOWED_SOURCE_HOSTS='raw.githubusercontent.com' \
+npm start
+```
+
+Configure the server to use the loopback Bridge:
+
+```toml
+[resolver]
+playbackApiUrl = "http://127.0.0.1:9863/v1/music-url"
+playbackApiToken = "replace-with-a-long-random-secret"
+allowedAudioHosts = ["the-actual-audio-cdn.example"]
+httpTimeoutSeconds = 15
+requireHttps = true
+```
+
+`playbackApiToken` and `BRIDGE_TOKEN` must match. `allowedAudioHosts` contains the CDN domains returned by the
+script, not `127.0.0.1`. The referenced 墨澜 v2.0.0 script declares only `musicUrl`, so the Bridge returns empty
+lyrics for it without failing playback. A source that declares `lyric` is forwarded directly; declared `pic` is
+also supported for integrations that request it.
+
+The Bridge executes trusted third-party JavaScript and is a security boundary, not a complete sandbox. Keep it on
+loopback, run it as a dedicated low-privilege user or constrained container, set `BRIDGE_TOKEN`, and never treat an
+untrusted JS URL as safe code. Source scripts can make outbound requests by design. Its README documents host
+allowlists, size/time limits, caching, redirects, reloads, and version/hash logging.
 
 A declarative descriptor may be validated by integrations without containing executable code:
 

@@ -1,0 +1,3 @@
+const { EVENT_NAMES, on, send } = globalThis.lx
+on(EVENT_NAMES.request, ({ action }) => action === 'musicUrl' ? 'https://audio.example.test/song.mp3' : Promise.reject(new Error('not supported')))
+send(EVENT_NAMES.inited, { sources: { kg: { type: 'music', actions: ['musicUrl'], qualitys: ['128k'] } } })

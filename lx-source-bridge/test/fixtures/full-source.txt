@@ -1,0 +1,17 @@
+/**
+ * @name Fixture Source
+ * @version 9.8.7
+ * @author tests
+ */
+const { EVENT_NAMES, on, send, request, utils } = globalThis.lx
+on(EVENT_NAMES.request, async ({ source, action, info }) => {
+  if (info.musicInfo.id === 'error') throw new Error('fixture failure')
+  if (action === 'musicUrl') {
+    const digest = utils.crypto.md5(info.musicInfo.id)
+    const result = await new Promise((resolve, reject) => request(info.musicInfo.api + '/resolve?id=' + digest, { timeout: 1000 }, (err, resp) => err ? reject(err) : resolve(resp.body)))
+    return result.url
+  }
+  if (action === 'lyric') return { lyric: '[00:00.00]fixture lyric' }
+  if (action === 'pic') return 'https://img.example.test/cover.jpg'
+})
+send(EVENT_NAMES.inited, { sources: { kg: { name: 'Kugou', type: 'music', actions: ['musicUrl', 'lyric', 'pic'], qualitys: ['128k', '320k'] } } })
