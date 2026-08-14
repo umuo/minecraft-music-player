@@ -11,7 +11,6 @@ import java.net.http.HttpResponse;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
-import javazoom.jl.player.Player;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -30,7 +29,7 @@ public final class ClientPlaybackManager {
     });
     private static final AtomicLong GENERATION = new AtomicLong();
 
-    private static volatile Player player;
+    private static volatile PositionalMp3Player player;
     private static volatile BlockPos sourcePos;
 
     private ClientPlaybackManager() {
@@ -63,13 +62,12 @@ public final class ClientPlaybackManager {
             }
             HttpResponse<InputStream> response = resolver.openAudio(uri);
             try (InputStream stream = response.body()) {
+                PositionalMp3Player nextPlayer = new PositionalMp3Player(stream);
+                if (GENERATION.get() != generation) { nextPlayer.close(); return; }
                 waitUntil(startAtNanos, generation);
-                if (GENERATION.get() != generation) {
-                    return;
-                }
-                Player nextPlayer = new Player(stream);
+                if (GENERATION.get() != generation) { nextPlayer.close(); return; }
                 player = nextPlayer;
-                nextPlayer.play();
+                nextPlayer.play(Vec3.atCenterOf(payload.pos()), MusicBoxConfig.BROADCAST_RADIUS.getAsInt());
             }
         } catch (Exception error) {
             MusicBoxMod.LOGGER.warn("Unable to play {}", payload.track().title(), error);
@@ -110,7 +108,7 @@ public final class ClientPlaybackManager {
 
     private static void stopCurrent() {
         GENERATION.incrementAndGet();
-        Player current = player;
+        PositionalMp3Player current = player;
         player = null;
         BlockPos stoppedPos = sourcePos;
         sourcePos = null;

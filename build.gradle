@@ -163,6 +163,13 @@ tasks.register('lyricsUnitTest', JavaExec) {
     mainClass = 'com.gitsilence.musicbox.client.lyrics.LyricTimelineTest'
     dependsOn testClasses
 }
+tasks.register('spatialAudioUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates positional audio attenuation boundaries.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.client.playback.SpatialAudioMathTest'
+    dependsOn testClasses
+}
 tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false
 }
