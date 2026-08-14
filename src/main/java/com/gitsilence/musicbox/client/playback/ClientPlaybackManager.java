@@ -3,6 +3,7 @@ package com.gitsilence.musicbox.client.playback;
 import com.gitsilence.musicbox.MusicBoxMod;
 import com.gitsilence.musicbox.client.lyrics.ClientLyricsManager;
 import com.gitsilence.musicbox.network.payload.StartTrackPayload;
+import com.gitsilence.musicbox.playback.TrackRef;
 import com.gitsilence.musicbox.server.resolver.ResolverSecurityPolicy;
 import java.io.InputStream;
 import java.net.URI;
@@ -35,6 +36,9 @@ public final class ClientPlaybackManager {
     private static volatile PositionalMp3Player player;
     private static volatile BlockPos sourcePos;
     private static volatile int activeRadius;
+    private static volatile PlaybackSnapshot snapshot;
+
+    public record PlaybackSnapshot(BlockPos pos, TrackRef track, long startGameTime, int broadcastRadius) { }
 
     private ClientPlaybackManager() {
     }
@@ -43,6 +47,7 @@ public final class ClientPlaybackManager {
         stopCurrent();
         sourcePos = payload.pos();
         activeRadius = payload.broadcastRadius();
+        snapshot = new PlaybackSnapshot(payload.pos(), payload.track(), payload.startGameTime(), payload.broadcastRadius());
         long generation = GENERATION.incrementAndGet();
         Minecraft minecraft = Minecraft.getInstance();
         long currentGameTime = minecraft.level == null ? payload.startGameTime() : minecraft.level.getGameTime();
@@ -56,6 +61,11 @@ public final class ClientPlaybackManager {
         if (pos.equals(sourcePos)) {
             stopCurrent();
         }
+    }
+
+    /** Immutable client-side broadcast state for renderers. Never contains the audio or lyric URL. */
+    public static PlaybackSnapshot snapshot() {
+        return snapshot;
     }
 
     private static void playResolved(StartTrackPayload payload, long generation, long startAtNanos) {
@@ -132,6 +142,7 @@ public final class ClientPlaybackManager {
         player = null;
         BlockPos stoppedPos = sourcePos;
         sourcePos = null;
+        snapshot = null;
         if (stoppedPos != null) ClientLyricsManager.stop(stoppedPos);
         if (current != null) {
             current.close();

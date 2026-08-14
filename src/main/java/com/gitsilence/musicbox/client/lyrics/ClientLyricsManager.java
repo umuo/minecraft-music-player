@@ -2,6 +2,7 @@ package com.gitsilence.musicbox.client.lyrics;
 
 import com.gitsilence.musicbox.MusicBoxMod;
 import com.gitsilence.musicbox.network.payload.StartTrackPayload;
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
@@ -27,6 +28,17 @@ public final class ClientLyricsManager {
 
     public static void stop(BlockPos pos) {
         if (pos.equals(source)) { generation++; source = null; timeline = LyricTimeline.parse(""); }
+    }
+
+    public record LyricsSnapshot(BlockPos source, long elapsedMillis, List<String> lines) { }
+
+    /** Read-only view used by world rendering; HUD state and timing remain unchanged. */
+    public static LyricsSnapshot snapshot(long gameTime) {
+        BlockPos activeSource = source;
+        if (activeSource == null) return null;
+        long elapsed = Math.max(0, gameTime - startGameTime) * 50L;
+        List<String> visible = timeline.windowAt(elapsed, 1);
+        return visible.isEmpty() ? null : new LyricsSnapshot(activeSource, elapsed, visible);
     }
 
     @SubscribeEvent

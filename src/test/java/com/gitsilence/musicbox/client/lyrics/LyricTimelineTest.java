@@ -7,6 +7,8 @@ public final class LyricTimelineTest {
         check(timeline.at(1499).isEmpty());
         check("first".equals(timeline.at(1500)));
         check("second".equals(timeline.at(4000)));
+        check(timeline.windowAt(1500, 1).equals(java.util.List.of("first", "second")));
+        check(timeline.windowAt(1000, 1).isEmpty());
         System.out.println("LRC timeline checks passed");
     }
     private static void check(boolean value) { if (!value) throw new AssertionError(); }

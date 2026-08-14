@@ -46,5 +46,16 @@ public final class LyricTimeline {
         return current;
     }
 
+    public List<String> windowAt(long millis, int followingLines) {
+        int current = -1;
+        for (int index = 0; index < lines.size(); index++) {
+            if (lines.get(index).millis() > millis) break;
+            current = index;
+        }
+        if (current < 0) return List.of();
+        int end = Math.min(lines.size(), current + Math.max(0, followingLines) + 1);
+        return lines.subList(current, end).stream().map(Line::text).toList();
+    }
+
     public List<Line> lines() { return lines; }
 }

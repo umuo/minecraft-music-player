@@ -35,5 +35,9 @@
   "screen.musicbox.status.error": "Error: %s",
   "message.musicbox.too_far": "You are too far away from the music box.",
   "message.musicbox.playback_failed": "Music playback failed: %s",
-  "message.musicbox.resolve_failed": "Server could not resolve the track: %s"
+  "message.musicbox.resolve_failed": "Server could not resolve the track: %s",
+  "overlay.musicbox.title_artist": "%s — %s",
+  "overlay.musicbox.buffering": "Buffering…",
+  "overlay.musicbox.unknown_duration": "Playing · --:--",
+  "overlay.musicbox.progress": "%s  %s / %s"
 }
