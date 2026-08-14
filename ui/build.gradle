@@ -35,3 +35,11 @@ tasks.register('catalogSmokeTest', JavaExec) {
     mainClass = 'com.gitsilence.musicbox.ui.catalog.CatalogIntegrationProbe'
     dependsOn testClasses
 }
+
+tasks.register('coverUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates cover URL security policy.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.ui.cover.CoverTextureCacheTest'
+    dependsOn testClasses
+}

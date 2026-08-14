@@ -8,6 +8,7 @@ import com.gitsilence.musicbox.ui.catalog.MusicPlatform;
 import com.gitsilence.musicbox.ui.catalog.PageResult;
 import com.gitsilence.musicbox.ui.catalog.PlaylistDetail;
 import com.gitsilence.musicbox.ui.state.BrowserSessionState;
+import com.gitsilence.musicbox.ui.cover.CoverTextureCache;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import net.minecraft.Util;
@@ -18,6 +19,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 
 public final class MusicBrowserScreen extends Screen {
     private static final int PAGE_SIZE = 20;
@@ -45,6 +47,7 @@ public final class MusicBrowserScreen extends Screen {
     private final QueueControlHandler queueControlHandler;
     private final Runnable stopHandler;
     private final String initialQuality;
+    private final CoverTextureCache covers = new CoverTextureCache();
     private List<String> queue = List.of();
     private boolean queueView;
 
@@ -559,7 +562,8 @@ public final class MusicBrowserScreen extends Screen {
 
     private void renderTrackRow(GuiGraphics graphics, CatalogTrack track, int left, int right, int y, int number) {
         graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
-        int titleX = left + 43;
+        renderCover(graphics, track.coverUrl(), left + 39, y + 3);
+        int titleX = left + 63;
         int durationWidth = 38;
         String title = font.plainSubstrByWidth(track.title(), Math.max(30, (right - left) / 2 - 42));
         String artist = font.plainSubstrByWidth(track.artist(), Math.max(30, (right - left) / 2 - 52));
@@ -572,12 +576,23 @@ public final class MusicBrowserScreen extends Screen {
 
     private void renderPlaylistRow(GuiGraphics graphics, CatalogPlaylist playlist, int left, int right, int y, int number) {
         graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
+        renderCover(graphics, playlist.coverUrl(), left + 39, y + 3);
         String name = font.plainSubstrByWidth(playlist.name(), Math.max(40, right - left - 155));
         String creator = font.plainSubstrByWidth(playlist.creator(), Math.max(40, right - left - 190));
-        graphics.drawString(font, name, left + 43, y + 3, TEXT, false);
-        graphics.drawString(font, creator, left + 43, y + 14, TEXT_DIM, false);
+        graphics.drawString(font, name, left + 63, y + 3, TEXT, false);
+        graphics.drawString(font, creator, left + 63, y + 14, TEXT_DIM, false);
         graphics.drawString(font, Component.translatable("screen.musicbox.track_count", playlist.trackCount()), right - 88, y + 8,
                 0xFF79C5D2, false);
+    }
+
+    private void renderCover(GuiGraphics graphics, String url, int x, int y) {
+        ResourceLocation texture = covers.get(url);
+        if (texture == null) {
+            graphics.fill(x, y, x + 19, y + 19, 0xFF343741);
+            graphics.fill(x + 6, y + 5, x + 13, y + 12, 0xFF5A5F6D);
+        } else {
+            graphics.blit(texture, x, y, 0, 0, 19, 19, 19, 19);
+        }
     }
 
     @Override
@@ -699,6 +714,7 @@ public final class MusicBrowserScreen extends Screen {
     @Override
     public void removed() {
         rememberCurrentQuery();
+        covers.close();
         super.removed();
     }
 

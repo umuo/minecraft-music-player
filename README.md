@@ -17,8 +17,9 @@ NeoForge 1.21.1 / Java 21 mod that adds a placeable music box. A server owns the
 - Per-platform search memory, recent-search recall, refresh/retry, playlist back-navigation, and keyboard controls.
 
 The music box now keeps a server-authoritative, persisted queue with add, remove, skip, clear, and automatic
-track advancement. Cover rendering, lyrics, OpenAL positional audio, and safe LX source compatibility remain
-follow-up milestones.
+track advancement. Track and playlist covers are downloaded asynchronously from allow-listed platform image
+hosts and released with the browser screen. Lyrics, OpenAL positional audio, and safe LX source compatibility
+remain follow-up milestones.
 
 ## In-game browser
 
