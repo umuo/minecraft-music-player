@@ -24,10 +24,11 @@ public final class CoverTextureCache implements AutoCloseable {
             .followRedirects(HttpClient.Redirect.NEVER).build();
     private final Map<String, ResourceLocation> textures = new ConcurrentHashMap<>();
     private final Set<String> pending = ConcurrentHashMap.newKeySet();
+    private final Set<String> unavailable = ConcurrentHashMap.newKeySet();
     private volatile boolean closed;
 
     public ResourceLocation get(String url) {
-        if (url == null || url.isBlank() || closed) return null;
+        if (url == null || url.isBlank() || closed || unavailable.contains(url)) return null;
         ResourceLocation texture = textures.get(url);
         if (texture == null && pending.add(url)) download(url);
         return texture;
@@ -38,7 +39,7 @@ public final class CoverTextureCache implements AutoCloseable {
         try { uri = CoverUrlPolicy.validate(value); }
         catch (RuntimeException error) {
             pending.remove(value);
-            LOGGER.debug("Rejected music cover URL {}", value, error);
+            markUnavailable(value, "URL was rejected");
             return;
         }
         HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10))
@@ -46,22 +47,34 @@ public final class CoverTextureCache implements AutoCloseable {
         client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).thenAccept(response -> {
             if (response.statusCode() < 200 || response.statusCode() >= 300
                     || response.body().length == 0 || response.body().length > MAX_BYTES) {
-                LOGGER.debug("Music cover request returned status {} and {} bytes for {}",
-                        response.statusCode(), response.body().length, value);
+                markUnavailable(value, "HTTP " + response.statusCode() + ", " + response.body().length + " bytes");
+                return;
+            }
+            String contentType = response.headers().firstValue("Content-Type").orElse("");
+            if (!CoverImagePolicy.isPngResponse(contentType, response.body())) {
+                markUnavailable(value, "response is not a PNG");
                 return;
             }
             try (NativeImage image = NativeImage.read(new ByteArrayInputStream(response.body()))) {
-                if (image.getWidth() > MAX_DIMENSION || image.getHeight() > MAX_DIMENSION) return;
+                if (image.getWidth() < 1 || image.getHeight() < 1
+                        || image.getWidth() > MAX_DIMENSION || image.getHeight() > MAX_DIMENSION) {
+                    markUnavailable(value, "image dimensions are unsupported");
+                    return;
+                }
                 NativeImage owned = new NativeImage(image.format(), image.getWidth(), image.getHeight(), false);
                 owned.copyFrom(image);
                 Minecraft.getInstance().execute(() -> register(value, owned));
             } catch (Exception error) {
-                LOGGER.debug("Unable to decode music cover {}", value, error);
+                markUnavailable(value, "PNG could not be decoded");
             }
         }).whenComplete((unused, error) -> {
             pending.remove(value);
-            if (error != null) LOGGER.debug("Unable to download music cover {}", value, error);
+            if (error != null) markUnavailable(value, "download failed");
         });
+    }
+
+    private void markUnavailable(String url, String reason) {
+        if (unavailable.add(url)) LOGGER.debug("Music cover unavailable ({}): {}", reason, url);
     }
 
     private void register(String url, NativeImage image) {
@@ -76,5 +89,7 @@ public final class CoverTextureCache implements AutoCloseable {
         closed = true;
         textures.values().forEach(id -> Minecraft.getInstance().getTextureManager().release(id));
         textures.clear();
+        pending.clear();
+        unavailable.clear();
     }
 }

@@ -104,8 +104,8 @@ public final class ClientPlaybackManager {
 
     private static HttpResponse<InputStream> openAudio(URI uri) throws Exception {
         HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER)
-                .connectTimeout(Duration.ofSeconds(15)).build();
-        HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15))
+                .connectTimeout(Duration.ofSeconds(60)).build();
+        HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(60))
                 .header("Accept", "audio/mpeg,audio/*;q=0.9,*/*;q=0.1").GET().build();
         HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {

@@ -1,8 +1,8 @@
 import path from 'node:path'
 
-const integer = (env, name, fallback, min = 1) => {
+const integer = (env, name, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) => {
   const value = env[name] == null || env[name] === '' ? fallback : Number(env[name])
-  if (!Number.isSafeInteger(value) || value < min) throw new Error(`${name} must be an integer >= ${min}`)
+  if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error(`${name} must be an integer in ${min}..${max}`)
   return value
 }
 
@@ -61,8 +61,8 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     maxRequestBytes: integer(env, 'MAX_REQUEST_BYTES', 256 * 1024),
     maxUpstreamBytes: integer(env, 'MAX_UPSTREAM_BYTES', 4 * 1024 * 1024),
     maxResponseBytes: integer(env, 'MAX_RESPONSE_BYTES', 1024 * 1024),
-    requestTimeoutMs: integer(env, 'REQUEST_TIMEOUT_MS', 15_000),
-    scriptTimeoutMs: integer(env, 'SCRIPT_TIMEOUT_MS', 5_000),
+    requestTimeoutMs: integer(env, 'REQUEST_TIMEOUT_MS', 60_000, 1, 60_000),
+    scriptTimeoutMs: integer(env, 'SCRIPT_TIMEOUT_MS', 60_000, 1, 60_000),
     redirectLimit: integer(env, 'REDIRECT_LIMIT', 3, 0),
     reloadIntervalMs: integer(env, 'RELOAD_INTERVAL_MS', 0, 0),
   }

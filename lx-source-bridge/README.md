@@ -49,8 +49,8 @@ Configure Minecraft's server-only named resolvers with the paths:
 ```toml
 [resolver]
 sources = [
-  '''{"id":"molan","displayName":"Molan","playbackApiUrl":"http://127.0.0.1:9863/sources/molan/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-a.example.invalid"],"requireHttps":true,"timeoutSeconds":15,"platforms":["kg","wy"],"qualities":["128k","320k"],"capabilities":["musicUrl"],"enabled":true,"permissionLevel":0}''',
-  '''{"id":"flower","displayName":"Flower","playbackApiUrl":"http://127.0.0.1:9863/sources/flower/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-b.example.invalid"],"requireHttps":true,"timeoutSeconds":15,"platforms":["kg"],"qualities":["128k"],"capabilities":["musicUrl","lyric"],"enabled":true,"permissionLevel":0}'''
+  '''{"id":"molan","displayName":"Molan","playbackApiUrl":"http://127.0.0.1:9863/sources/molan/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-a.example.invalid"],"requireHttps":true,"timeoutSeconds":60,"platforms":["kg","wy"],"qualities":["128k","320k"],"capabilities":["musicUrl"],"enabled":true,"permissionLevel":0}''',
+  '''{"id":"flower","displayName":"Flower","playbackApiUrl":"http://127.0.0.1:9863/sources/flower/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-b.example.invalid"],"requireHttps":true,"timeoutSeconds":60,"platforms":["kg"],"qualities":["128k"],"capabilities":["musicUrl","lyric"],"enabled":true,"permissionLevel":0}'''
 ]
 ```
 
@@ -72,8 +72,8 @@ Each resolver token must equal the shared `BRIDGE_TOKEN`. URLs and tokens remain
 | `MAX_REQUEST_BYTES` | `262144` | Maximum inbound request |
 | `MAX_UPSTREAM_BYTES` | `4194304` | Maximum response read by an LX script request |
 | `MAX_RESPONSE_BYTES` | `1048576` | Maximum bridge JSON response |
-| `REQUEST_TIMEOUT_MS` | `15000` | Script request/action deadline |
-| `SCRIPT_TIMEOUT_MS` | `5000` | Synchronous evaluation/init deadline |
+| `REQUEST_TIMEOUT_MS` | `60000` | Script HTTP request/action deadline; maximum `60000` |
+| `SCRIPT_TIMEOUT_MS` | `60000` | Synchronous evaluation/init deadline; maximum `60000` |
 | `REDIRECT_LIMIT` | `3` | Explicit redirect cap; `0` disables redirects |
 | `RELOAD_INTERVAL_MS` | `0` | Per-slot polling interval; `0` disables it |
 

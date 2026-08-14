@@ -36,8 +36,8 @@ public final class MusicBoxConfig {
                 .define(ResolverConfigKeys.PLAYBACK_API_TOKEN, "");
         ALLOWED_AUDIO_HOSTS = common.comment("Allowed final audio CDN hosts; exact hosts and subdomains match.")
                 .defineListAllowEmpty(ResolverConfigKeys.ALLOWED_AUDIO_HOSTS, List.of(), () -> "", value -> value instanceof String);
-        HTTP_TIMEOUT_SECONDS = common.comment("Resolver HTTP timeout in seconds.")
-                .defineInRange(ResolverConfigKeys.HTTP_TIMEOUT_SECONDS, 15, 3, 60);
+        HTTP_TIMEOUT_SECONDS = common.comment("Resolver HTTP timeout in seconds (maximum 60).")
+                .defineInRange(ResolverConfigKeys.HTTP_TIMEOUT_SECONDS, 60, 3, 60);
         REQUIRE_HTTPS = common.comment("Require HTTPS for resolver and audio URLs (localhost excepted).")
                 .define(ResolverConfigKeys.REQUIRE_HTTPS, true);
         RESOLVER_SOURCES = common.comment(

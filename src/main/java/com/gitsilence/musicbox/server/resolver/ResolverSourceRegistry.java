@@ -56,7 +56,7 @@ public final class ResolverSourceRegistry {
             String endpoint = required(object, "playbackApiUrl");
             boolean requireHttps = bool(object, "requireHttps", true);
             ResolverSecurityPolicy.validateEndpoint(endpoint, requireHttps);
-            int timeout = integer(object, "timeoutSeconds", 15, 3, 60);
+            int timeout = integer(object, "timeoutSeconds", 60, 3, 60);
             int permission = integer(object, "permissionLevel", 0, 0, 4);
             List<String> hosts = list(object, "allowedAudioHosts", Set.of());
             List<String> platforms = list(object, "platforms", PLATFORMS);

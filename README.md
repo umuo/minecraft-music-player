@@ -48,7 +48,7 @@ Configure each server/world in `world/serverconfig/musicbox-server.toml` (the ex
 playbackApiUrl = "https://music-api.example.com/v1/music-url"
 playbackApiToken = "replace-with-server-secret"
 allowedAudioHosts = ["cdn.example.com"]
-httpTimeoutSeconds = 15
+httpTimeoutSeconds = 60
 requireHttps = true
 ```
 
@@ -63,8 +63,8 @@ A single Bridge can route multiple JS source slots by path; neither its URL nor 
 ```toml
 [resolver]
 sources = [
-  '''{"id":"molan","displayName":"Molan","playbackApiUrl":"http://127.0.0.1:9863/sources/molan/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-a.example.invalid"],"requireHttps":true,"timeoutSeconds":15,"platforms":["kg","wy"],"qualities":["128k","320k","flac"],"capabilities":["musicUrl"],"enabled":true,"permissionLevel":0}''',
-  '''{"id":"flower","displayName":"Flower","playbackApiUrl":"http://127.0.0.1:9863/sources/flower/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-b.example.invalid"],"requireHttps":true,"timeoutSeconds":10,"platforms":["kg"],"qualities":["128k","320k"],"capabilities":["musicUrl","lyric"],"enabled":true,"permissionLevel":0}'''
+  '''{"id":"molan","displayName":"Molan","playbackApiUrl":"http://127.0.0.1:9863/sources/molan/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-a.example.invalid"],"requireHttps":true,"timeoutSeconds":60,"platforms":["kg","wy"],"qualities":["128k","320k","flac"],"capabilities":["musicUrl"],"enabled":true,"permissionLevel":0}''',
+  '''{"id":"flower","displayName":"Flower","playbackApiUrl":"http://127.0.0.1:9863/sources/flower/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-b.example.invalid"],"requireHttps":true,"timeoutSeconds":60,"platforms":["kg"],"qualities":["128k","320k"],"capabilities":["musicUrl","lyric"],"enabled":true,"permissionLevel":0}'''
 ]
 ```
 
@@ -161,7 +161,7 @@ Configure the server to use the loopback Bridge:
 playbackApiUrl = "http://127.0.0.1:9863/v1/music-url"
 playbackApiToken = "replace-with-a-long-random-secret"
 allowedAudioHosts = ["the-actual-audio-cdn.example"]
-httpTimeoutSeconds = 15
+httpTimeoutSeconds = 60
 requireHttps = true
 ```
 
@@ -169,6 +169,9 @@ requireHttps = true
 script, not `127.0.0.1`. The referenced 墨澜 v2.0.0 script declares only `musicUrl`, so the Bridge returns empty
 lyrics for it without failing playback. A source that declares `lyric` is forwarded directly; declared `pic` is
 also supported for integrations that request it.
+
+Resolver, Bridge request/action, Bridge script initialization, and client audio HTTP defaults are 60 seconds.
+Each remains capped at 60 seconds; lower values may be configured where faster failure is preferred.
 
 The Bridge executes trusted third-party JavaScript and is a security boundary, not a complete sandbox. Keep it on
 loopback, run it as a dedicated low-privilege user or constrained container, set `BRIDGE_TOKEN`, and never treat an

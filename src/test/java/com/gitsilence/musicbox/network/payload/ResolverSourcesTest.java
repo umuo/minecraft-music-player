@@ -26,6 +26,9 @@ public final class ResolverSourcesTest {
                 """;
         ResolverSourceConfig source = ResolverSourceRegistry.parse(List.of(json), null).get("local-b");
         check(source.token().equals("top-secret") && source.timeoutSeconds() == 12, "server config not parsed");
+        String defaults = json.replace("\"timeoutSeconds\":12,", "");
+        check(ResolverSourceRegistry.parse(List.of(defaults), null).get("local-b").timeoutSeconds() == 60,
+                "named resolver timeout default is not 60 seconds");
         check(source.playbackApiUrl().endsWith("/sources/local-b/v1/music-url"), "resolver path was not preserved");
         String publicJson = new Gson().toJson(source.publicInfo());
         check(publicJson.contains("local-b") && publicJson.contains("Bridge B"), "public source is incomplete");
