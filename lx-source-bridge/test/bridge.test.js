@@ -63,6 +63,15 @@ test('requires token and validates source/action/quality and handler errors', as
   assert.equal(failed.status, 502); assert.match((await failed.json()).error, /fixture failure/)
 })
 
+test('dispatches tx, kw, and mg source ids without rewriting them', async t => {
+  const app = await setup(t)
+  for (const source of ['tx', 'kw', 'mg']) {
+    const response = await post(app.base, '/v1/music-url', { ...payload('musicUrl', app.remote.base), source })
+    assert.equal(response.status, 200, source)
+    assert.deepEqual(await response.json(), { url: 'https://audio.example.test/song.mp3' })
+  }
+})
+
 test('returns stable empty lyric when source declares only musicUrl', async t => {
   const app = await setup(t, 'music-only-source.txt')
   const response = await post(app.base, '/v1/music-url', payload('lyric', app.remote.base))

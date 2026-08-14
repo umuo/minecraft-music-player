@@ -10,7 +10,7 @@ NeoForge 1.21.1 / Java 21 mod that adds a placeable music box. The server owns p
 - LX-style playback URL resolver API.
 - MP3 playback on each client through a bundled pure-Java decoder.
 - Separate `ui` Gradle module for the in-game browser and interaction state.
-- Live Kugou and NetEase platform switching.
+- Live Kugou (`kg`), NetEase (`wy`), QQ Music (`tx`), Kuwo (`kw`), and Migu (`mg`) platform switching.
 - Track search with pagination and selectable playback quality.
 - Trending playlists, playlist search, and playlist detail browsing.
 - Loading, empty, selection, paging, and error states designed for controller-like in-game interaction.
@@ -26,11 +26,15 @@ the music box position with distance attenuation. LX sources are supported throu
 
 Right-click a placed music box, then:
 
-1. Switch between Kugou and NetEase.
+1. Switch between Kugou, NetEase, QQ Music, Kuwo, and Migu.
 2. Choose Tracks or Playlists.
 3. Search tracks, or leave playlist search empty to browse trending lists.
 4. Select a result and use Open/Play; double-clicking also performs the primary action.
 5. Cycle `128k`, `320k`, `flac`, and `flac24bit` before requesting playback.
+
+Playback is enabled only when the platform metadata advertises the selected format. Migu currently exposes
+track and playlist search through its public catalog API, but its former public playlist-detail route is retired;
+opening a Migu playlist therefore reports an explicit unavailable error instead of returning fabricated tracks.
 
 The browser remembers separate queries for every platform/tab during the current client session. `Recent` cycles
 through the latest eight searches. Use `Up`/`Down` to select, `Enter` to open or play, `Ctrl+F` to focus search,

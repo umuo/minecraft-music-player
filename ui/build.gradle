@@ -17,6 +17,7 @@ neoForge {
 }
 
 dependencies {
+    testImplementation 'com.google.code.gson:gson:2.10.1'
     testRuntimeOnly 'com.google.code.gson:gson:2.10.1'
 }
 
@@ -42,4 +43,16 @@ tasks.register('coverUnitTest', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.gitsilence.musicbox.ui.cover.CoverTextureCacheTest'
     dependsOn testClasses
+}
+
+tasks.register('additionalProvidersUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates QQ, Kuwo, and Migu catalog mappings and source ids.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.ui.catalog.provider.AdditionalProvidersTest'
+    dependsOn testClasses
+}
+
+tasks.named('check').configure {
+    dependsOn coverUnitTest, additionalProvidersUnitTest
 }

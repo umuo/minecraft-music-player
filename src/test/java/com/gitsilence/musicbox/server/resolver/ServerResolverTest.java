@@ -6,7 +6,7 @@ import java.util.List;
 
 public final class ServerResolverTest {
     public static void main(String[] args) {
-        urls(); responses(); configSeparation();
+        urls(); responses(); requestSources(); configSeparation();
         System.out.println("Server resolver checks passed");
     }
     private static void urls() {
@@ -30,6 +30,18 @@ public final class ServerResolverTest {
         check(ResolverConfigKeys.SERVER.contains("playbackApiToken"), "token missing from server config");
         check(!ResolverConfigKeys.CLIENT.contains("playbackApiToken"), "token exposed in client config");
         check(!ResolverConfigKeys.CLIENT.contains("playbackApiUrl"), "resolver URL exposed in client config");
+    }
+    private static void requestSources() {
+        for (String source : List.of("tx", "kw", "mg")) {
+            var track = new com.gitsilence.musicbox.playback.TrackRef(source, "platform-id", "Song", "Artist", "Album",
+                    120, "h128", "h320", "flac", "hires", "320k", "bridge");
+            var json = ServerPlaybackResolver.requestJson(track, "musicUrl");
+            check(source.equals(json.get("source").getAsString()), source + " resolver source changed");
+            var info = json.getAsJsonObject("info").getAsJsonObject("musicInfo");
+            check("platform-id".equals(info.get("songmid").getAsString()), source + " platform id missing from resolver request");
+            String alias = switch (source) { case "kw" -> "musicrid"; case "mg" -> "copyrightId"; default -> "mid"; };
+            check("platform-id".equals(info.get(alias).getAsString()), source + " LX id alias missing from resolver request");
+        }
     }
     private static void rejects(Runnable action) {
         try { action.run(); throw new AssertionError("unsafe input accepted"); }

@@ -85,6 +85,9 @@ public final class MusicBrowserScreen extends Screen {
     private EditBox searchField;
     private StyledButton kugouButton;
     private StyledButton neteaseButton;
+    private StyledButton qqButton;
+    private StyledButton kuwoButton;
+    private StyledButton miguButton;
     private StyledButton tracksButton;
     private StyledButton playlistsButton;
     private StyledButton previousButton;
@@ -123,13 +126,22 @@ public final class MusicBrowserScreen extends Screen {
         int right = panelRight();
         int navY = PANEL_TOP + HEADER_HEIGHT + 3;
 
-        kugouButton = addStyled(left + 8, navY, 56, 18,
+        kugouButton = addStyled(left + 8, navY, 42, 18,
                 Component.translatable(MusicPlatform.KUGOU.translationKey()), ButtonStyle.TAB,
                 () -> switchPlatform(MusicPlatform.KUGOU));
-        neteaseButton = addStyled(left + 66, navY, 66, 18,
+        neteaseButton = addStyled(left + 52, navY, 50, 18,
                 Component.translatable(MusicPlatform.NETEASE.translationKey()), ButtonStyle.TAB,
                 () -> switchPlatform(MusicPlatform.NETEASE));
-        sourceButton = addStyled(left + 136, navY, 112, 18, sourceLabel(), ButtonStyle.NORMAL,
+        qqButton = addStyled(left + 104, navY, 50, 18,
+                Component.translatable(MusicPlatform.QQ.translationKey()), ButtonStyle.TAB,
+                () -> switchPlatform(MusicPlatform.QQ));
+        kuwoButton = addStyled(left + 156, navY, 42, 18,
+                Component.translatable(MusicPlatform.KUWO.translationKey()), ButtonStyle.TAB,
+                () -> switchPlatform(MusicPlatform.KUWO));
+        miguButton = addStyled(left + 200, navY, 42, 18,
+                Component.translatable(MusicPlatform.MIGU.translationKey()), ButtonStyle.TAB,
+                () -> switchPlatform(MusicPlatform.MIGU));
+        sourceButton = addStyled(left + 244, navY, 88, 18, sourceLabel(), ButtonStyle.NORMAL,
                 this::cycleResolverSource);
         tracksButton = addStyled(right - 124, navY, 54, 18,
                 Component.translatable("screen.musicbox.tab.tracks"), ButtonStyle.TAB,
@@ -484,10 +496,16 @@ public final class MusicBrowserScreen extends Screen {
         if (kugouButton == null) return;
         kugouButton.active = !loading && platform != MusicPlatform.KUGOU;
         neteaseButton.active = !loading && platform != MusicPlatform.NETEASE;
+        qqButton.active = !loading && platform != MusicPlatform.QQ;
+        kuwoButton.active = !loading && platform != MusicPlatform.KUWO;
+        miguButton.active = !loading && platform != MusicPlatform.MIGU;
         tracksButton.active = !loading && (mode != ViewMode.TRACKS || playlistDetail);
         playlistsButton.active = !loading && (mode != ViewMode.PLAYLISTS || playlistDetail);
         kugouButton.selected = platform == MusicPlatform.KUGOU;
         neteaseButton.selected = platform == MusicPlatform.NETEASE;
+        qqButton.selected = platform == MusicPlatform.QQ;
+        kuwoButton.selected = platform == MusicPlatform.KUWO;
+        miguButton.selected = platform == MusicPlatform.MIGU;
         tracksButton.selected = mode == ViewMode.TRACKS && !playlistDetail;
         playlistsButton.selected = mode == ViewMode.PLAYLISTS || playlistDetail;
         previousButton.active = !loading && !playlistDetail && currentPage != null && currentPage.hasPrevious();

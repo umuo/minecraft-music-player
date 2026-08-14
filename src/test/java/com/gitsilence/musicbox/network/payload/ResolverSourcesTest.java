@@ -22,7 +22,7 @@ public final class ResolverSourcesTest {
         String json = """
                 {"id":"local-b","displayName":"Bridge B","playbackApiUrl":"http://127.0.0.1:9863/sources/local-b/v1/music-url",
                  "token":"top-secret","allowedAudioHosts":["cdn.example"],"requireHttps":true,"timeoutSeconds":12,
-                 "platforms":["kg","wy"],"qualities":["128k","320k"],"capabilities":["musicUrl","lyric"]}
+                 "platforms":["kg","wy","tx","kw","mg"],"qualities":["128k","320k"],"capabilities":["musicUrl","lyric"]}
                 """;
         ResolverSourceConfig source = ResolverSourceRegistry.parse(List.of(json), null).get("local-b");
         check(source.token().equals("top-secret") && source.timeoutSeconds() == 12, "server config not parsed");
@@ -49,6 +49,12 @@ public final class ResolverSourcesTest {
         PayloadCodecs.writeTrack(buffer, original);
         TrackRef decoded = PayloadCodecs.readTrack(buffer);
         check(decoded.equals(original) && decoded.sourceId().equals("bridge-b"), "track sourceId did not round-trip");
+        for (String platform : List.of("tx", "kw", "mg")) {
+            TrackRef platformTrack = track(platform, "bridge-b");
+            RegistryFriendlyByteBuf platformBuffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
+            PayloadCodecs.writeTrack(platformBuffer, platformTrack);
+            check(PayloadCodecs.readTrack(platformBuffer).source().equals(platform), platform + " source did not round-trip");
+        }
 
         OpenMusicBoxPayload open = new OpenMusicBoxPayload(new BlockPos(1, 2, 3),
                 List.of(config("bridge-b", "http://127.0.0.1:9864/v1/music-url", 0).publicInfo()));
@@ -64,6 +70,12 @@ public final class ResolverSourcesTest {
         check(ResolverSourceSelector.select(sources, track("bridge-b"), 2) == source, "resolver not selected");
         rejects(() -> ResolverSourceSelector.select(sources, track("unknown"), 4));
         rejects(() -> ResolverSourceSelector.select(sources, track("bridge-b"), 1));
+        ResolverSourceConfig all = new ResolverSourceConfig("all", "All", "http://127.0.0.1:9864/v1/music-url", "",
+                List.of("cdn.example"), true, 15, List.of("tx", "kw", "mg"), List.of("320k"),
+                List.of("musicUrl"), true, 0);
+        for (String platform : all.platforms())
+            check(ResolverSourceSelector.select(Map.of("all", all), track(platform, "all"), 0) == all,
+                    platform + " resolver selection failed");
     }
 
     private static ResolverSourceConfig config(String id, String url, int permission) {
@@ -72,7 +84,10 @@ public final class ResolverSourcesTest {
     }
 
     private static TrackRef track(String sourceId) {
-        return new TrackRef("kg", "42", "Song", "Artist", "Album", 120,
+        return track("kg", sourceId);
+    }
+    private static TrackRef track(String platform, String sourceId) {
+        return new TrackRef(platform, "42", "Song", "Artist", "Album", 120,
                 "h128", "h320", "", "", "320k", sourceId);
     }
     private static void rejects(Runnable action) {

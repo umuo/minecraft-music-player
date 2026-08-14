@@ -22,7 +22,11 @@ final class CatalogHttp {
             .build();
 
     CompletableFuture<JsonElement> getJson(String baseUrl, Map<String, String> parameters) {
-        return getText(uri(baseUrl, parameters)).thenApply(body -> {
+        return getJson(baseUrl, parameters, Map.of());
+    }
+
+    CompletableFuture<JsonElement> getJson(String baseUrl, Map<String, String> parameters, Map<String, String> headers) {
+        return getText(uri(baseUrl, parameters), headers).thenApply(body -> {
             try {
                 return JsonParser.parseString(body);
             } catch (RuntimeException error) {
@@ -32,13 +36,18 @@ final class CatalogHttp {
     }
 
     CompletableFuture<String> getText(URI uri) {
-        HttpRequest request = HttpRequest.newBuilder(uri)
+        return getText(uri, Map.of());
+    }
+
+    CompletableFuture<String> getText(URI uri, Map<String, String> headers) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(TIMEOUT)
                 .header("Accept", "application/json,text/html;q=0.8")
                 .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.5")
                 .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 MusicBox/0.2")
-                .GET()
-                .build();
+                .GET();
+        headers.forEach(builder::header);
+        HttpRequest request = builder.build();
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
                 .thenApply(response -> {
                     if (response.statusCode() < 200 || response.statusCode() >= 300) {

@@ -63,6 +63,10 @@ public final class ServerPlaybackResolver {
     static JsonObject requestJson(TrackRef track, String action) {
         JsonObject music = new JsonObject();
         music.addProperty("id", track.trackId()); music.addProperty("songmid", track.trackId());
+        // LX sources use different names for the same catalog identity. Supplying aliases keeps the normalized
+        // TrackRef compatible with tx/kw/mg handlers without changing or guessing the platform id.
+        music.addProperty("mid", track.trackId()); music.addProperty("musicrid", track.trackId());
+        music.addProperty("copyrightId", track.trackId()); music.addProperty("contentId", track.trackId());
         music.addProperty("name", track.title()); music.addProperty("singer", track.artist());
         music.addProperty("albumName", track.album()); music.addProperty("interval", track.durationSeconds());
         music.addProperty("hash", track.hashForQuality("128k"));

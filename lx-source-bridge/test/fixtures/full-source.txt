@@ -14,4 +14,5 @@ on(EVENT_NAMES.request, async ({ source, action, info }) => {
   if (action === 'lyric') return { lyric: '[00:00.00]fixture lyric' }
   if (action === 'pic') return 'https://img.example.test/cover.jpg'
 })
-send(EVENT_NAMES.inited, { sources: { kg: { name: 'Kugou', type: 'music', actions: ['musicUrl', 'lyric', 'pic'], qualitys: ['128k', '320k'] } } })
+const definition = name => ({ name, type: 'music', actions: ['musicUrl', 'lyric', 'pic'], qualitys: ['128k', '320k'] })
+send(EVENT_NAMES.inited, { sources: { kg: definition('Kugou'), tx: definition('QQ'), kw: definition('Kuwo'), mg: definition('Migu') } })

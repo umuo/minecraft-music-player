@@ -5,7 +5,10 @@ import java.util.Locale;
 import java.util.Set;
 
 final class CoverUrlPolicy {
-    private static final Set<String> HOST_SUFFIXES = Set.of("kugou.com", "kugoucdn.com", "music.126.net");
+    private static final Set<String> HOST_SUFFIXES = Set.of(
+            "kugou.com", "kugoucdn.com", "music.126.net", "qpic.cn", "qq.com", "gtimg.cn",
+            "kuwo.cn", "migu.cn", "musicapp.migu.cn"
+    );
     private CoverUrlPolicy() { }
     static URI validate(String value) {
         URI uri = URI.create(value);
