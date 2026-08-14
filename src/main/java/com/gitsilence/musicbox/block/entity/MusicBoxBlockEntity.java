@@ -8,14 +8,18 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class MusicBoxBlockEntity extends BlockEntity {
     private static final String TRACK_TAG = "Track";
     private static final String START_TIME_TAG = "StartGameTime";
+    private static final String QUEUE_TAG = "Queue";
 
     @Nullable
     private TrackRef currentTrack;
     private long startGameTime;
+    private final List<TrackRef> queue = new ArrayList<>();
 
     public MusicBoxBlockEntity(BlockPos pos, BlockState state) {
         super(MusicBoxMod.MUSIC_BOX_ENTITY.get(), pos, state);
@@ -33,6 +37,37 @@ public final class MusicBoxBlockEntity extends BlockEntity {
         setChanged();
     }
 
+    public boolean enqueue(TrackRef track, int maximum) {
+        if (!track.isValid() || queue.size() >= maximum) return false;
+        queue.add(track);
+        setChanged();
+        return true;
+    }
+
+    @Nullable
+    public TrackRef pollQueue() {
+        if (queue.isEmpty()) return null;
+        TrackRef track = queue.removeFirst();
+        setChanged();
+        return track;
+    }
+
+    public boolean removeQueued(int index) {
+        if (index < 0 || index >= queue.size()) return false;
+        queue.remove(index);
+        setChanged();
+        return true;
+    }
+
+    public void clearQueue() {
+        queue.clear();
+        setChanged();
+    }
+
+    public List<TrackRef> queue() {
+        return List.copyOf(queue);
+    }
+
     @Nullable
     public TrackRef currentTrack() {
         return currentTrack;
@@ -46,21 +81,12 @@ public final class MusicBoxBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         if (currentTrack != null) {
-            CompoundTag trackTag = new CompoundTag();
-            trackTag.putString("Source", currentTrack.source());
-            trackTag.putString("Id", currentTrack.trackId());
-            trackTag.putString("Title", currentTrack.title());
-            trackTag.putString("Artist", currentTrack.artist());
-            trackTag.putString("Album", currentTrack.album());
-            trackTag.putInt("Duration", currentTrack.durationSeconds());
-            trackTag.putString("Hash128", currentTrack.hash128());
-            trackTag.putString("Hash320", currentTrack.hash320());
-            trackTag.putString("HashFlac", currentTrack.hashFlac());
-            trackTag.putString("HashHires", currentTrack.hashHires());
-            trackTag.putString("Quality", currentTrack.quality());
-            tag.put(TRACK_TAG, trackTag);
+            tag.put(TRACK_TAG, saveTrack(currentTrack));
             tag.putLong(START_TIME_TAG, startGameTime);
         }
+        net.minecraft.nbt.ListTag queueTag = new net.minecraft.nbt.ListTag();
+        for (TrackRef track : queue) queueTag.add(saveTrack(track));
+        tag.put(QUEUE_TAG, queueTag);
     }
 
     @Override
@@ -69,10 +95,37 @@ public final class MusicBoxBlockEntity extends BlockEntity {
         if (!tag.contains(TRACK_TAG)) {
             currentTrack = null;
             startGameTime = 0;
-            return;
+        } else {
+            TrackRef loaded = loadTrack(tag.getCompound(TRACK_TAG));
+            currentTrack = loaded.isValid() ? loaded : null;
+            startGameTime = currentTrack == null ? 0 : tag.getLong(START_TIME_TAG);
         }
-        CompoundTag trackTag = tag.getCompound(TRACK_TAG);
-        TrackRef loaded = new TrackRef(
+        queue.clear();
+        net.minecraft.nbt.ListTag queueTag = tag.getList(QUEUE_TAG, net.minecraft.nbt.Tag.TAG_COMPOUND);
+        for (int index = 0; index < queueTag.size(); index++) {
+            TrackRef queued = loadTrack(queueTag.getCompound(index));
+            if (queued.isValid()) queue.add(queued);
+        }
+    }
+
+    private static CompoundTag saveTrack(TrackRef track) {
+        CompoundTag trackTag = new CompoundTag();
+        trackTag.putString("Source", track.source());
+        trackTag.putString("Id", track.trackId());
+        trackTag.putString("Title", track.title());
+        trackTag.putString("Artist", track.artist());
+        trackTag.putString("Album", track.album());
+        trackTag.putInt("Duration", track.durationSeconds());
+        trackTag.putString("Hash128", track.hash128());
+        trackTag.putString("Hash320", track.hash320());
+        trackTag.putString("HashFlac", track.hashFlac());
+        trackTag.putString("HashHires", track.hashHires());
+        trackTag.putString("Quality", track.quality());
+        return trackTag;
+    }
+
+    private static TrackRef loadTrack(CompoundTag trackTag) {
+        return new TrackRef(
                 trackTag.getString("Source"),
                 trackTag.getString("Id"),
                 trackTag.getString("Title"),
@@ -85,7 +138,5 @@ public final class MusicBoxBlockEntity extends BlockEntity {
                 trackTag.getString("HashHires"),
                 trackTag.getString("Quality")
         );
-        currentTrack = loaded.isValid() ? loaded : null;
-        startGameTime = currentTrack == null ? 0 : tag.getLong(START_TIME_TAG);
     }
 }

@@ -9,6 +9,7 @@ public final class MusicBoxConfig {
 
     public static final ModConfigSpec.IntValue BROADCAST_RADIUS;
     public static final ModConfigSpec.IntValue START_DELAY_TICKS;
+    public static final ModConfigSpec.IntValue MAX_QUEUE_SIZE;
     public static final ModConfigSpec.BooleanValue REQUIRE_HTTPS;
 
     public static final ModConfigSpec.ConfigValue<String> PLAYBACK_API_URL;
@@ -24,6 +25,8 @@ public final class MusicBoxConfig {
                 .defineInRange("broadcastRadius", 64, 8, 256);
         START_DELAY_TICKS = common.comment("Delay before playback starts, allowing clients time to resolve and buffer the stream.")
                 .defineInRange("startDelayTicks", 60, 20, 200);
+        MAX_QUEUE_SIZE = common.comment("Maximum number of waiting tracks stored by each music box.")
+                .defineInRange("maxQueueSize", 100, 1, 500);
         REQUIRE_HTTPS = common.comment("Reject non-HTTPS playback URLs, except localhost URLs used for development.")
                 .define("requireHttps", true);
         common.pop();

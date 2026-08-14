@@ -149,6 +149,17 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 }
 
+tasks.register('queueUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs dependency-free queue/track validation checks.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.playback.TrackRefTest'
+    dependsOn testClasses
+}
+tasks.withType(Test).configureEach {
+    failOnNoDiscoveredTests = false
+}
+
 tasks.named('jar', Jar).configure {
     from(project(':ui').sourceSets.main.output)
     dependsOn(project(':ui').tasks.named('classes'))

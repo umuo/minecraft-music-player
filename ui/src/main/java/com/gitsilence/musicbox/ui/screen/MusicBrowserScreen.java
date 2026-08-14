@@ -41,8 +41,12 @@ public final class MusicBrowserScreen extends Screen {
     private static final BrowserSessionState SESSION = new BrowserSessionState();
 
     private final TrackPlayHandler playHandler;
+    private final TrackPlayHandler enqueueHandler;
+    private final QueueControlHandler queueControlHandler;
     private final Runnable stopHandler;
     private final String initialQuality;
+    private List<String> queue = List.of();
+    private boolean queueView;
 
     private MusicPlatform platform;
     private ViewMode mode;
@@ -80,14 +84,20 @@ public final class MusicBrowserScreen extends Screen {
     private StyledButton refreshButton;
     private StyledButton playButton;
     private StyledButton qualityButton;
+    private StyledButton queueButton;
+    private StyledButton addButton;
+    private StyledButton skipButton;
 
-    public MusicBrowserScreen(String initialQuality, TrackPlayHandler playHandler, Runnable stopHandler) {
+    public MusicBrowserScreen(String initialQuality, TrackPlayHandler playHandler, TrackPlayHandler enqueueHandler,
+                              QueueControlHandler queueControlHandler, Runnable stopHandler) {
         super(Component.translatable("screen.musicbox.title"));
         this.initialQuality = QUALITIES.contains(initialQuality) ? initialQuality : "320k";
         this.platform = SESSION.platform();
         this.mode = SESSION.playlistMode() ? ViewMode.PLAYLISTS : ViewMode.TRACKS;
         this.quality = SESSION.qualityOr(this.initialQuality);
         this.playHandler = playHandler;
+        this.enqueueHandler = enqueueHandler;
+        this.queueControlHandler = queueControlHandler;
         this.stopHandler = stopHandler;
     }
 
@@ -142,6 +152,12 @@ public final class MusicBrowserScreen extends Screen {
                 this::refresh);
         qualityButton = addStyled(left + 88, bottom, 78, 20, qualityLabel(), ButtonStyle.NORMAL,
                 this::cycleQuality);
+        queueButton = addStyled(left + 168, bottom, 58, 20, Component.translatable("screen.musicbox.queue"),
+                ButtonStyle.NORMAL, this::toggleQueue);
+        skipButton = addStyled(left + 228, bottom, 50, 20, Component.translatable("screen.musicbox.skip"),
+                ButtonStyle.GHOST, () -> queueControlHandler.apply(QueueOperation.SKIP, 0));
+        addButton = addStyled(right - 172, bottom, 44, 20, Component.translatable("screen.musicbox.enqueue"),
+                ButtonStyle.NORMAL, this::enqueueSelected);
         playButton = addStyled(right - 126, bottom, 58, 20, Component.translatable("screen.musicbox.play"),
                 ButtonStyle.ACCENT, this::primaryAction);
         addStyled(right - 66, bottom, 58, 20, Component.translatable("screen.musicbox.stop"), ButtonStyle.DANGER,
@@ -149,6 +165,34 @@ public final class MusicBrowserScreen extends Screen {
 
         updateButtons();
         if (mode == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
+    }
+
+    public void updateQueue(List<String> tracks) {
+        queue = List.copyOf(tracks);
+        if (queueView) {
+            scrollOffset = Math.min(scrollOffset, Math.max(0, queue.size() - 1));
+            selectedVisibleIndex = -1;
+            updateButtons();
+        }
+    }
+
+    private void toggleQueue() {
+        queueView = !queueView;
+        scrollOffset = 0;
+        selectedVisibleIndex = -1;
+        queueButton.selected = queueView;
+        status = Component.translatable("screen.musicbox.status.queue", queue.size());
+        updateButtons();
+    }
+
+    private void enqueueSelected() {
+        if (queueView) {
+            queueControlHandler.apply(QueueOperation.CLEAR, 0);
+            return;
+        }
+        if (selectedTrack == null) return;
+        enqueueHandler.play(selectedTrack, quality);
+        status = Component.translatable("screen.musicbox.status.enqueued", selectedTrack.title());
     }
 
     private StyledButton addStyled(int x, int y, int width, int height, Component label, ButtonStyle style,
@@ -380,6 +424,11 @@ public final class MusicBrowserScreen extends Screen {
     }
 
     private void primaryAction() {
+        if (queueView) {
+            if (selectedVisibleIndex >= 0) queueControlHandler.apply(QueueOperation.REMOVE,
+                    scrollOffset + selectedVisibleIndex);
+            return;
+        }
         if (selectedTrack != null) {
             playSelected();
         } else if (selectedPlaylist != null && !playlistDetail) {
@@ -406,10 +455,16 @@ public final class MusicBrowserScreen extends Screen {
         refreshButton.active = !loading && (playlistDetail || currentPage != null || mode == ViewMode.PLAYLISTS
                 || !searchField.getValue().isBlank());
         qualityButton.active = !loading;
+        queueButton.active = !loading;
+        addButton.active = !loading && (queueView ? !queue.isEmpty()
+                : selectedTrack != null && selectedTrack.hasQuality(quality));
+        addButton.setMessage(Component.translatable(queueView ? "screen.musicbox.clear" : "screen.musicbox.enqueue"));
+        skipButton.active = !loading;
         boolean canPlayTrack = selectedTrack != null && selectedTrack.hasQuality(quality);
         boolean canOpenPlaylist = selectedPlaylist != null && !playlistDetail && !playlists.isEmpty();
-        playButton.active = !loading && (canPlayTrack || canOpenPlaylist);
-        playButton.setMessage(Component.translatable(canOpenPlaylist ? "screen.musicbox.open" : "screen.musicbox.play"));
+        playButton.active = !loading && (queueView ? selectedVisibleIndex >= 0 : canPlayTrack || canOpenPlaylist);
+        playButton.setMessage(Component.translatable(queueView ? "screen.musicbox.remove"
+                : canOpenPlaylist ? "screen.musicbox.open" : "screen.musicbox.play"));
     }
 
     @Override
@@ -481,7 +536,8 @@ public final class MusicBrowserScreen extends Screen {
                         selected ? 0xFF344963 : 0x503F4552);
             }
             if (selected) graphics.fill(left + 9, y + 4, left + 12, y + ROW_HEIGHT - 4, ACCENT);
-            if (!tracks.isEmpty()) renderTrackRow(graphics, tracks.get(index), left, right, y, displayNumber(index));
+            if (queueView) renderQueueRow(graphics, queue.get(index), left, right, y, index + 1);
+            else if (!tracks.isEmpty()) renderTrackRow(graphics, tracks.get(index), left, right, y, displayNumber(index));
             else if (!playlists.isEmpty()) renderPlaylistRow(graphics, playlists.get(index), left, right, y, displayNumber(index));
         }
         if (total == 0 && !loading) {
@@ -494,6 +550,11 @@ public final class MusicBrowserScreen extends Screen {
             int thumbY = top + (bottom - top - trackHeight) * scrollOffset / Math.max(1, maxOffset);
             graphics.fill(right - 11, thumbY, right - 8, thumbY + trackHeight, 0xFF5A5F6D);
         }
+    }
+
+    private void renderQueueRow(GuiGraphics graphics, String track, int left, int right, int y, int number) {
+        graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
+        graphics.drawString(font, font.plainSubstrByWidth(track, right - left - 70), left + 43, y + 8, TEXT, false);
     }
 
     private void renderTrackRow(GuiGraphics graphics, CatalogTrack track, int left, int right, int y, int number) {
@@ -533,7 +594,9 @@ public final class MusicBrowserScreen extends Screen {
         boolean doubleClick = lastClickIndex == index && now - lastClickTime < 350;
         lastClickIndex = index;
         lastClickTime = now;
-        if (!tracks.isEmpty()) {
+        if (queueView) {
+            // The selected queue index is handled by the Remove action.
+        } else if (!tracks.isEmpty()) {
             selectedTrack = tracks.get(index);
             if (doubleClick) playSelected();
         } else if (!playlists.isEmpty()) {
@@ -605,7 +668,7 @@ public final class MusicBrowserScreen extends Screen {
     }
 
     private int itemCount() {
-        return !tracks.isEmpty() ? tracks.size() : playlists.size();
+        return queueView ? queue.size() : !tracks.isEmpty() ? tracks.size() : playlists.size();
     }
 
     private int visibleRows(int top, int bottom) {
@@ -643,6 +706,13 @@ public final class MusicBrowserScreen extends Screen {
     public interface TrackPlayHandler {
         void play(CatalogTrack track, String quality);
     }
+
+    @FunctionalInterface
+    public interface QueueControlHandler {
+        void apply(QueueOperation operation, int index);
+    }
+
+    public enum QueueOperation { REMOVE, SKIP, CLEAR }
 
     private final class StyledButton extends AbstractButton {
         private final ButtonStyle style;

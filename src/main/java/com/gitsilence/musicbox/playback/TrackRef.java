@@ -15,6 +15,7 @@ public record TrackRef(
         String hashHires,
         String quality
 ) {
+    public static final TrackRef EMPTY = new TrackRef("", "", "", "", "", 0, "", "", "", "", "128k");
     private static final Set<String> SOURCES = Set.of("kw", "kg", "tx", "wy", "mg", "local");
     private static final Set<String> QUALITIES = Set.of("128k", "320k", "flac", "flac24bit");
 

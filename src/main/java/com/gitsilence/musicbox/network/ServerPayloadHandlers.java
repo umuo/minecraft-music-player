@@ -6,6 +6,9 @@ import com.gitsilence.musicbox.network.payload.RequestTrackPayload;
 import com.gitsilence.musicbox.network.payload.StartTrackPayload;
 import com.gitsilence.musicbox.network.payload.StopRequestPayload;
 import com.gitsilence.musicbox.network.payload.StopTrackPayload;
+import com.gitsilence.musicbox.network.payload.QueueRequestPayload;
+import com.gitsilence.musicbox.network.payload.QueueStatePayload;
+import com.gitsilence.musicbox.playback.TrackRef;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -47,11 +50,36 @@ public final class ServerPayloadHandlers {
         }
     }
 
+    public static void queueRequest(QueueRequestPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player) || !canControl(player, payload.pos())) return;
+        if (!(player.level().getBlockEntity(payload.pos()) instanceof MusicBoxBlockEntity musicBox)) return;
+        boolean changed = switch (payload.operation()) {
+            case ADD -> musicBox.enqueue(payload.track(), MusicBoxConfig.MAX_QUEUE_SIZE.getAsInt());
+            case REMOVE -> musicBox.removeQueued(payload.index());
+            case CLEAR -> { musicBox.clearQueue(); yield true; }
+            case SKIP -> { advance(player.serverLevel(), payload.pos(), musicBox); yield true; }
+        };
+        if (changed) sendNearby(player.serverLevel(), payload.pos(), new QueueStatePayload(payload.pos(), musicBox.queue()));
+    }
+
+    public static void advance(ServerLevel level, net.minecraft.core.BlockPos pos, MusicBoxBlockEntity musicBox) {
+        TrackRef next = musicBox.pollQueue();
+        if (next == null) {
+            musicBox.stop();
+            sendNearby(level, pos, new StopTrackPayload(pos));
+        } else {
+            long start = level.getGameTime() + MusicBoxConfig.START_DELAY_TICKS.getAsInt();
+            musicBox.start(next, start);
+            sendNearby(level, pos, new StartTrackPayload(pos, next, start));
+        }
+        sendNearby(level, pos, new QueueStatePayload(pos, musicBox.queue()));
+    }
+
     private static boolean canControl(ServerPlayer player, net.minecraft.core.BlockPos pos) {
         return player.distanceToSqr(Vec3.atCenterOf(pos)) <= MAX_INTERACTION_DISTANCE_SQUARED;
     }
 
-    private static void sendNearby(ServerLevel level, net.minecraft.core.BlockPos pos, net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {
+    public static void sendNearby(ServerLevel level, net.minecraft.core.BlockPos pos, net.minecraft.network.protocol.common.custom.CustomPacketPayload payload) {
         double radiusSquared = Math.pow(MusicBoxConfig.BROADCAST_RADIUS.getAsInt(), 2);
         Vec3 center = Vec3.atCenterOf(pos);
         for (ServerPlayer listener : level.players()) {
