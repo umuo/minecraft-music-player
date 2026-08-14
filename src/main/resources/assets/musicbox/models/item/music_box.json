@@ -1,3 +1,6 @@
 {
-  "parent": "musicbox:block/music_box"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "musicbox:item/music_box"
+  }
 }
