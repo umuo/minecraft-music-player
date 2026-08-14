@@ -13,14 +13,30 @@ import java.util.concurrent.CompletionException;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 public final class MusicBrowserScreen extends Screen {
     private static final int PAGE_SIZE = 20;
-    private static final int ROW_HEIGHT = 22;
+    private static final int ROW_HEIGHT = 25;
+    private static final int PANEL_TOP = 10;
+    private static final int HEADER_HEIGHT = 25;
+    private static final int LIST_TOP = 87;
+    private static final int FOOTER_HEIGHT = 38;
+    private static final int GROUND = 0xFF1E1F26;
+    private static final int SURFACE = 0xFF252730;
+    private static final int FIELD = 0xFF2A2C34;
+    private static final int BAND = 0xFF15161B;
+    private static final int BORDER = 0xFF0C0C10;
+    private static final int TEXT = 0xFFF0F1F4;
+    private static final int TEXT_DIM = 0xFFA9ADBB;
+    private static final int TEXT_FAINT = 0xFF6F7482;
+    private static final int ACCENT = 0xFF5B9CFF;
+    private static final int CTA = 0xFFFFAA00;
+    private static final int ERROR = 0xFFE5534B;
     private static final List<String> QUALITIES = List.of("128k", "320k", "flac", "flac24bit");
     private static final BrowserSessionState SESSION = new BrowserSessionState();
 
@@ -54,16 +70,16 @@ public final class MusicBrowserScreen extends Screen {
     private int parentSelectedIndex = -1;
 
     private EditBox searchField;
-    private Button kugouButton;
-    private Button neteaseButton;
-    private Button tracksButton;
-    private Button playlistsButton;
-    private Button previousButton;
-    private Button nextButton;
-    private Button backButton;
-    private Button refreshButton;
-    private Button playButton;
-    private Button qualityButton;
+    private StyledButton kugouButton;
+    private StyledButton neteaseButton;
+    private StyledButton tracksButton;
+    private StyledButton playlistsButton;
+    private StyledButton previousButton;
+    private StyledButton nextButton;
+    private StyledButton backButton;
+    private StyledButton refreshButton;
+    private StyledButton playButton;
+    private StyledButton qualityButton;
 
     public MusicBrowserScreen(String initialQuality, TrackPlayHandler playHandler, Runnable stopHandler) {
         super(Component.translatable("screen.musicbox.title"));
@@ -79,27 +95,30 @@ public final class MusicBrowserScreen extends Screen {
     protected void init() {
         int left = panelLeft();
         int right = panelRight();
-        int top = 25;
+        int navY = PANEL_TOP + HEADER_HEIGHT + 3;
 
-        kugouButton = addRenderableWidget(Button.builder(Component.translatable(MusicPlatform.KUGOU.translationKey()),
-                        button -> switchPlatform(MusicPlatform.KUGOU))
-                .bounds(left, top, 62, 20).build());
-        neteaseButton = addRenderableWidget(Button.builder(Component.translatable(MusicPlatform.NETEASE.translationKey()),
-                        button -> switchPlatform(MusicPlatform.NETEASE))
-                .bounds(left + 66, top, 72, 20).build());
-        tracksButton = addRenderableWidget(Button.builder(Component.translatable("screen.musicbox.tab.tracks"),
-                        button -> switchMode(ViewMode.TRACKS))
-                .bounds(left + 146, top, 54, 20).build());
-        playlistsButton = addRenderableWidget(Button.builder(Component.translatable("screen.musicbox.tab.playlists"),
-                        button -> switchMode(ViewMode.PLAYLISTS))
-                .bounds(left + 204, top, 54, 20).build());
+        kugouButton = addStyled(left + 8, navY, 56, 18,
+                Component.translatable(MusicPlatform.KUGOU.translationKey()), ButtonStyle.TAB,
+                () -> switchPlatform(MusicPlatform.KUGOU));
+        neteaseButton = addStyled(left + 66, navY, 66, 18,
+                Component.translatable(MusicPlatform.NETEASE.translationKey()), ButtonStyle.TAB,
+                () -> switchPlatform(MusicPlatform.NETEASE));
+        tracksButton = addStyled(right - 124, navY, 54, 18,
+                Component.translatable("screen.musicbox.tab.tracks"), ButtonStyle.TAB,
+                () -> switchMode(ViewMode.TRACKS));
+        playlistsButton = addStyled(right - 68, navY, 60, 18,
+                Component.translatable("screen.musicbox.tab.playlists"), ButtonStyle.TAB,
+                () -> switchMode(ViewMode.PLAYLISTS));
 
-        int searchY = top + 25;
+        int searchY = navY + 21;
         int searchButtonWidth = 48;
         int historyButtonWidth = 44;
-        searchField = addRenderableWidget(new EditBox(font, left, searchY,
-                right - left - searchButtonWidth - historyButtonWidth - 8, 20,
+        searchField = addRenderableWidget(new EditBox(font, left + 12, searchY + 5,
+                right - left - searchButtonWidth - historyButtonWidth - 28, 12,
                 Component.translatable("screen.musicbox.search.hint")));
+        searchField.setBordered(false);
+        searchField.setTextColor(TEXT);
+        searchField.setTextColorUneditable(TEXT_DIM);
         searchField.setHint(Component.translatable("screen.musicbox.search.hint"));
         searchField.setMaxLength(80);
         searchField.setValue(SESSION.query(platform, mode == ViewMode.PLAYLISTS));
@@ -107,29 +126,34 @@ public final class MusicBrowserScreen extends Screen {
             SESSION.query(platform, mode == ViewMode.PLAYLISTS, value);
             historyIndex = -1;
         });
-        addRenderableWidget(Button.builder(Component.translatable("screen.musicbox.search"), button -> search(1))
-                .bounds(right - searchButtonWidth - historyButtonWidth - 4, searchY, searchButtonWidth, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("screen.musicbox.history"), button -> cycleHistory())
-                .bounds(right - historyButtonWidth, searchY, historyButtonWidth, 20).build());
+        addStyled(right - searchButtonWidth - historyButtonWidth - 6, searchY, searchButtonWidth, 20,
+                Component.translatable("screen.musicbox.search"), ButtonStyle.ACCENT, () -> search(1));
+        addStyled(right - historyButtonWidth, searchY, historyButtonWidth, 20,
+                Component.translatable("screen.musicbox.history"), ButtonStyle.NORMAL, this::cycleHistory);
 
         int bottom = height - 29;
-        previousButton = addRenderableWidget(Button.builder(Component.literal("<"), button -> search(page - 1))
-                .bounds(left, bottom, 24, 20).build());
-        nextButton = addRenderableWidget(Button.builder(Component.literal(">"), button -> search(page + 1))
-                .bounds(left + 28, bottom, 24, 20).build());
-        backButton = addRenderableWidget(Button.builder(Component.translatable("screen.musicbox.back"), button -> closePlaylist())
-                .bounds(left, bottom, 52, 20).build());
-        refreshButton = addRenderableWidget(Button.builder(Component.literal("↻"), button -> refresh())
-                .bounds(left + 56, bottom, 24, 20).build());
-        qualityButton = addRenderableWidget(Button.builder(qualityLabel(), button -> cycleQuality())
-                .bounds(left + 84, bottom, 78, 20).build());
-        playButton = addRenderableWidget(Button.builder(Component.translatable("screen.musicbox.play"), button -> primaryAction())
-                .bounds(right - 126, bottom, 58, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("screen.musicbox.stop"), button -> stopHandler.run())
-                .bounds(right - 64, bottom, 64, 20).build());
+        previousButton = addStyled(left + 8, bottom, 24, 20, Component.literal("‹"), ButtonStyle.GHOST,
+                () -> search(page - 1));
+        nextButton = addStyled(left + 34, bottom, 24, 20, Component.literal("›"), ButtonStyle.GHOST,
+                () -> search(page + 1));
+        backButton = addStyled(left + 8, bottom, 52, 20, Component.translatable("screen.musicbox.back"),
+                ButtonStyle.NORMAL, this::closePlaylist);
+        refreshButton = addStyled(left + 62, bottom, 24, 20, Component.literal("↻"), ButtonStyle.GHOST,
+                this::refresh);
+        qualityButton = addStyled(left + 88, bottom, 78, 20, qualityLabel(), ButtonStyle.NORMAL,
+                this::cycleQuality);
+        playButton = addStyled(right - 126, bottom, 58, 20, Component.translatable("screen.musicbox.play"),
+                ButtonStyle.ACCENT, this::primaryAction);
+        addStyled(right - 66, bottom, 58, 20, Component.translatable("screen.musicbox.stop"), ButtonStyle.DANGER,
+                stopHandler);
 
         updateButtons();
         if (mode == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
+    }
+
+    private StyledButton addStyled(int x, int y, int width, int height, Component label, ButtonStyle style,
+                                   Runnable action) {
+        return addRenderableWidget(new StyledButton(x, y, width, height, label, style, action));
     }
 
     private void switchPlatform(MusicPlatform next) {
@@ -369,6 +393,10 @@ public final class MusicBrowserScreen extends Screen {
         neteaseButton.active = !loading && platform != MusicPlatform.NETEASE;
         tracksButton.active = !loading && (mode != ViewMode.TRACKS || playlistDetail);
         playlistsButton.active = !loading && (mode != ViewMode.PLAYLISTS || playlistDetail);
+        kugouButton.selected = platform == MusicPlatform.KUGOU;
+        neteaseButton.selected = platform == MusicPlatform.NETEASE;
+        tracksButton.selected = mode == ViewMode.TRACKS && !playlistDetail;
+        playlistsButton.selected = mode == ViewMode.PLAYLISTS || playlistDetail;
         previousButton.active = !loading && !playlistDetail && currentPage != null && currentPage.hasPrevious();
         nextButton.active = !loading && !playlistDetail && currentPage != null && currentPage.hasNext();
         previousButton.visible = !playlistDetail;
@@ -389,25 +417,57 @@ public final class MusicBrowserScreen extends Screen {
         renderBackground(graphics, mouseX, mouseY, partialTick);
         int left = panelLeft();
         int right = panelRight();
-        graphics.fill(left - 6, 12, right + 6, height - 4, 0xD0181818);
-        graphics.drawCenteredString(font, title, width / 2, 15, 0xFFFFFF);
+        int panelBottom = height - 7;
+        drawWorkspace(graphics, left, right, panelBottom);
+        drawText(graphics, title, left + 10, PANEL_TOP + 8, TEXT);
+        String context = Component.translatable(platform.translationKey()).getString() + "  /  "
+                + Component.translatable(mode == ViewMode.TRACKS
+                        ? "screen.musicbox.tab.tracks" : "screen.musicbox.tab.playlists").getString();
+        drawText(graphics, Component.literal(context),
+                right - 10 - font.width(context), PANEL_TOP + 8, TEXT_DIM);
 
-        int listTop = 75;
-        int listBottom = height - 35;
-        graphics.fill(left, listTop, right, listBottom, 0x90000000);
-        renderRows(graphics, left, right, listTop, listBottom);
+        int listTop = LIST_TOP;
+        int listBottom = height - FOOTER_HEIGHT;
+        graphics.fill(left + 7, listTop - 3, right - 7, listBottom + 2, SURFACE);
+        renderRows(graphics, left, right, listTop, listBottom, mouseX, mouseY);
 
         String header = playlistDetail && selectedPlaylist != null
-                ? font.plainSubstrByWidth(selectedPlaylist.name(), Math.max(40, right - left - 145))
+                ? font.plainSubstrByWidth(selectedPlaylist.name(), Math.max(40, right - left - 210))
                 : "";
-        if (!header.isEmpty()) graphics.drawString(font, header, left + 264, 31, 0xFFD166, false);
-        graphics.drawString(font, font.plainSubstrByWidth(status.getString(), right - left - 174), left + 168, height - 23,
-                errorStatus ? 0xFF6B6B : 0xA8A8A8, false);
+        if (!header.isEmpty()) drawText(graphics, Component.literal(header), left + 136, PANEL_TOP + 40, CTA);
+        int statusX = left + 172;
+        int statusColor = errorStatus ? ERROR : loading ? CTA : TEXT_DIM;
+        graphics.fill(statusX, height - 21, statusX + 3, height - 18, statusColor);
+        drawText(graphics, Component.literal(font.plainSubstrByWidth(status.getString(), right - statusX - 142)),
+                statusX + 7, height - 24, statusColor);
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
-    private void renderRows(GuiGraphics graphics, int left, int right, int top, int bottom) {
+    private void drawWorkspace(GuiGraphics graphics, int left, int right, int bottom) {
+        graphics.fill(left + 4, PANEL_TOP + 4, right + 4, bottom + 4, 0x80000000);
+        graphics.fill(left, PANEL_TOP, right, bottom, BORDER);
+        graphics.fill(left + 2, PANEL_TOP + 2, right - 2, PANEL_TOP + HEADER_HEIGHT, BAND);
+        graphics.fill(left + 2, PANEL_TOP + HEADER_HEIGHT + 2, right - 2, bottom - 2, GROUND);
+        for (int y = PANEL_TOP + HEADER_HEIGHT + 8; y < bottom - 4; y += 16) {
+            for (int x = left + 8; x < right - 4; x += 16) graphics.fill(x, y, x + 1, y + 1, 0x283F424D);
+        }
+        graphics.fill(left + 8, PANEL_TOP + 50, right - 102, PANEL_TOP + 70, FIELD);
+        border(graphics, left + 8, PANEL_TOP + 50, right - left - 110, 20, 1, 0xFF3B3E49);
+    }
+
+    private void drawText(GuiGraphics graphics, Component text, int x, int y, int color) {
+        graphics.drawString(font, text, x, y, color, false);
+    }
+
+    private static void border(GuiGraphics graphics, int x, int y, int width, int height, int thickness, int color) {
+        graphics.fill(x, y, x + width, y + thickness, color);
+        graphics.fill(x, y + height - thickness, x + width, y + height, color);
+        graphics.fill(x, y, x + thickness, y + height, color);
+        graphics.fill(x + width - thickness, y, x + width, y + height, color);
+    }
+
+    private void renderRows(GuiGraphics graphics, int left, int right, int top, int bottom, int mouseX, int mouseY) {
         int visibleRows = visibleRows(top, bottom);
         int total = itemCount();
         int end = Math.min(total, scrollOffset + visibleRows);
@@ -415,52 +475,55 @@ public final class MusicBrowserScreen extends Screen {
             int visibleIndex = index - scrollOffset;
             int y = top + visibleIndex * ROW_HEIGHT;
             boolean selected = visibleIndex == selectedVisibleIndex;
-            graphics.fill(left + 1, y + 1, right - 1, y + ROW_HEIGHT - 1,
-                    selected ? 0xB04B6B88 : (visibleIndex % 2 == 0 ? 0x401F1F1F : 0x20292929));
+            boolean hovered = mouseX >= left + 8 && mouseX < right - 8 && mouseY >= y && mouseY < y + ROW_HEIGHT;
+            if (selected || hovered) {
+                graphics.fill(left + 9, y + 1, right - 10, y + ROW_HEIGHT - 1,
+                        selected ? 0xFF344963 : 0x503F4552);
+            }
+            if (selected) graphics.fill(left + 9, y + 4, left + 12, y + ROW_HEIGHT - 4, ACCENT);
             if (!tracks.isEmpty()) renderTrackRow(graphics, tracks.get(index), left, right, y, displayNumber(index));
             else if (!playlists.isEmpty()) renderPlaylistRow(graphics, playlists.get(index), left, right, y, displayNumber(index));
         }
         if (total == 0 && !loading) {
             graphics.drawCenteredString(font, Component.translatable("screen.musicbox.empty_hint"), (left + right) / 2,
-                    top + Math.max(8, (bottom - top) / 2 - 4), 0x777777);
+                    top + Math.max(8, (bottom - top) / 2 - 4), TEXT_FAINT);
         }
         if (total > visibleRows) {
             int trackHeight = Math.max(10, (bottom - top) * visibleRows / total);
             int maxOffset = total - visibleRows;
             int thumbY = top + (bottom - top - trackHeight) * scrollOffset / Math.max(1, maxOffset);
-            graphics.fill(right - 3, top, right, bottom, 0x60333333);
-            graphics.fill(right - 3, thumbY, right, thumbY + trackHeight, 0xFF7A9BB8);
+            graphics.fill(right - 11, thumbY, right - 8, thumbY + trackHeight, 0xFF5A5F6D);
         }
     }
 
     private void renderTrackRow(GuiGraphics graphics, CatalogTrack track, int left, int right, int y, int number) {
-        graphics.drawString(font, String.valueOf(number), left + 6, y + 7, 0x777777, false);
-        int titleX = left + 30;
+        graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
+        int titleX = left + 43;
         int durationWidth = 38;
         String title = font.plainSubstrByWidth(track.title(), Math.max(30, (right - left) / 2 - 42));
         String artist = font.plainSubstrByWidth(track.artist(), Math.max(30, (right - left) / 2 - 52));
-        graphics.drawString(font, title, titleX, y + 3, 0xFFFFFF, false);
-        graphics.drawString(font, artist, titleX, y + 12, 0xA8A8A8, false);
+        graphics.drawString(font, title, titleX, y + 3, TEXT, false);
+        graphics.drawString(font, artist, titleX, y + 14, TEXT_DIM, false);
         String album = font.plainSubstrByWidth(track.album(), Math.max(20, right - left - 220));
-        graphics.drawString(font, album, left + Math.max(150, (right - left) / 2), y + 7, 0x8DB3D3, false);
-        graphics.drawString(font, formatDuration(track.durationSeconds()), right - durationWidth, y + 7, 0x888888, false);
+        graphics.drawString(font, album, left + Math.max(170, (right - left) / 2), y + 8, 0xFF79C5D2, false);
+        graphics.drawString(font, formatDuration(track.durationSeconds()), right - durationWidth - 10, y + 8, TEXT_FAINT, false);
     }
 
     private void renderPlaylistRow(GuiGraphics graphics, CatalogPlaylist playlist, int left, int right, int y, int number) {
-        graphics.drawString(font, String.valueOf(number), left + 6, y + 7, 0x777777, false);
+        graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
         String name = font.plainSubstrByWidth(playlist.name(), Math.max(40, right - left - 155));
         String creator = font.plainSubstrByWidth(playlist.creator(), Math.max(40, right - left - 190));
-        graphics.drawString(font, name, left + 30, y + 3, 0xFFFFFF, false);
-        graphics.drawString(font, creator, left + 30, y + 12, 0xA8A8A8, false);
-        graphics.drawString(font, Component.translatable("screen.musicbox.track_count", playlist.trackCount()), right - 78, y + 7,
-                0x8DB3D3, false);
+        graphics.drawString(font, name, left + 43, y + 3, TEXT, false);
+        graphics.drawString(font, creator, left + 43, y + 14, TEXT_DIM, false);
+        graphics.drawString(font, Component.translatable("screen.musicbox.track_count", playlist.trackCount()), right - 88, y + 8,
+                0xFF79C5D2, false);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (super.mouseClicked(mouseX, mouseY, button)) return true;
-        int top = 75;
-        int bottom = height - 35;
+        int top = LIST_TOP;
+        int bottom = height - FOOTER_HEIGHT;
         if (button != 0 || mouseX < panelLeft() || mouseX >= panelRight() || mouseY < top || mouseY >= bottom) return false;
         int visibleIndex = (int) ((mouseY - top) / ROW_HEIGHT);
         int index = scrollOffset + visibleIndex;
@@ -483,8 +546,9 @@ public final class MusicBrowserScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        int maxOffset = Math.max(0, itemCount() - visibleRows(75, height - 35));
-        if (mouseX >= panelLeft() && mouseX < panelRight() && mouseY >= 75 && mouseY < height - 35) {
+        int maxOffset = Math.max(0, itemCount() - visibleRows(LIST_TOP, height - FOOTER_HEIGHT));
+        if (mouseX >= panelLeft() && mouseX < panelRight() && mouseY >= LIST_TOP
+                && mouseY < height - FOOTER_HEIGHT) {
             scrollOffset = Math.max(0, Math.min(maxOffset, scrollOffset - (int) Math.signum(scrollY)));
             selectedVisibleIndex = -1;
             selectedTrack = null;
@@ -526,7 +590,7 @@ public final class MusicBrowserScreen extends Screen {
         if (count == 0 || loading) return;
         int current = selectedVisibleIndex < 0 ? (direction > 0 ? -1 : count) : scrollOffset + selectedVisibleIndex;
         int selected = Math.max(0, Math.min(count - 1, current + direction));
-        int rows = visibleRows(75, height - 35);
+        int rows = visibleRows(LIST_TOP, height - FOOTER_HEIGHT);
         if (selected < scrollOffset) scrollOffset = selected;
         else if (selected >= scrollOffset + rows) scrollOffset = selected - rows + 1;
         selectedVisibleIndex = selected - scrollOffset;
@@ -553,11 +617,11 @@ public final class MusicBrowserScreen extends Screen {
     }
 
     private int panelLeft() {
-        return Math.max(14, (width - 390) / 2);
+        return Math.max(10, (width - Math.min(460, width - 20)) / 2);
     }
 
     private int panelRight() {
-        return Math.min(width - 14, panelLeft() + 390);
+        return Math.min(width - 10, panelLeft() + 460);
     }
 
     private static String formatDuration(int seconds) {
@@ -578,6 +642,56 @@ public final class MusicBrowserScreen extends Screen {
     @FunctionalInterface
     public interface TrackPlayHandler {
         void play(CatalogTrack track, String quality);
+    }
+
+    private final class StyledButton extends AbstractButton {
+        private final ButtonStyle style;
+        private final Runnable action;
+        private boolean selected;
+
+        private StyledButton(int x, int y, int width, int height, Component label, ButtonStyle style,
+                             Runnable action) {
+            super(x, y, width, height, label);
+            this.style = style;
+            this.action = action;
+        }
+
+        @Override
+        public void onPress() {
+            action.run();
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+            boolean hover = active && isHoveredOrFocused();
+            int background = switch (style) {
+                case TAB, GHOST -> hover ? 0x503F4552 : 0x00000000;
+                case NORMAL -> hover ? 0xFF3B3E49 : FIELD;
+                case ACCENT -> active ? (hover ? 0xFF73AAFA : ACCENT) : FIELD;
+                case DANGER -> active ? (hover ? 0xFFEF6B64 : 0xFFB84540) : FIELD;
+            };
+            if ((background >>> 24) != 0) graphics.fill(getX(), getY(), getRight(), getBottom(), background);
+            if (style == ButtonStyle.NORMAL) border(graphics, getX(), getY(), getWidth(), getHeight(), 1, 0xFF3B3E49);
+            if (selected) graphics.fill(getX() + 4, getBottom() - 3, getRight() - 4, getBottom() - 1, CTA);
+            int color = !active && !selected ? TEXT_FAINT
+                    : style == ButtonStyle.ACCENT || style == ButtonStyle.DANGER ? 0xFFFFFFFF : TEXT;
+            int textX = getX() + (getWidth() - font.width(getMessage())) / 2;
+            int textY = getY() + (getHeight() - font.lineHeight) / 2 + 1;
+            drawText(graphics, getMessage(), textX, textY, color);
+        }
+
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput output) {
+            defaultButtonNarrationText(output);
+        }
+    }
+
+    private enum ButtonStyle {
+        TAB,
+        NORMAL,
+        ACCENT,
+        DANGER,
+        GHOST
     }
 
     private enum ViewMode {
