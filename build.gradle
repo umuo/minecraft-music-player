@@ -122,6 +122,7 @@ configurations {
 
 dependencies {
     implementation project(':ui')
+    testRuntimeOnly 'com.google.code.gson:gson:2.10.1'
 
     // Small, pure-Java MP3 decoder used for HTTP audio streams returned by a resolver API.
     implementation 'javazoom:jlayer:1.0.1'
@@ -168,6 +169,13 @@ tasks.register('spatialAudioUnitTest', JavaExec) {
     description = 'Validates positional audio attenuation boundaries.'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.gitsilence.musicbox.client.playback.SpatialAudioMathTest'
+    dependsOn testClasses
+}
+tasks.register('safeLxUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates safe LX descriptor policy and JavaScript rejection.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.client.api.SafeLxSourcePolicyTest'
     dependsOn testClasses
 }
 tasks.withType(Test).configureEach {

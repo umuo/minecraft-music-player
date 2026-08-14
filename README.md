@@ -92,6 +92,20 @@ or:
 
 The current decoder supports MP3 streams. The resolver must return an HTTP(S) URL rather than audio bytes. Redirects are rejected, HTTPS is required outside localhost, and resolved hosts must be explicitly allowed.
 
+### Safe LX compatibility
+
+LX JavaScript sources are deliberately not evaluated in the Minecraft process: a script engine sandbox cannot
+reliably prevent filesystem, network, reflection, or credential access once bridged to Java. Run a source you
+trust in a separately permissioned local bridge and point `playbackApiUrl` at its loopback HTTP endpoint instead.
+The client sends only the documented `musicUrl` and `lyric` actions, never sends the resolver token through the
+game server, rejects redirects and unexpected content types, and caps resolver responses at 1 MiB.
+
+A declarative descriptor may be validated by integrations without containing executable code:
+
+```json
+{"format":"musicbox-safe-source-v1","name":"Local bridge","resolverUrl":"http://127.0.0.1:9863/v1/music-url"}
+```
+
 ## Development
 
 ```bash

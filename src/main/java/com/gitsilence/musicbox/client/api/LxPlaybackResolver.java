@@ -11,10 +11,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
 public final class LxPlaybackResolver {
+    private static final int MAX_RESOLVER_BYTES = 1024 * 1024;
     private final HttpClient httpClient;
 
     public LxPlaybackResolver() {
@@ -36,8 +38,7 @@ public final class LxPlaybackResolver {
             request.header("Authorization", "Bearer " + token);
         }
 
-        return httpClient.sendAsync(request.build(), HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> parseResponse(endpoint, response));
+        return sendBridge(request.build()).thenApply(response -> parseResponse(endpoint, response));
     }
 
     public CompletableFuture<String> resolveLyrics(TrackRef track) {
@@ -47,7 +48,7 @@ public final class LxPlaybackResolver {
                 .POST(HttpRequest.BodyPublishers.ofString(requestJson(track, "lyric").toString()));
         String token = MusicBoxConfig.PLAYBACK_API_TOKEN.get().strip();
         if (!token.isEmpty()) request.header("Authorization", "Bearer " + token);
-        return httpClient.sendAsync(request.build(), HttpResponse.BodyHandlers.ofString())
+        return sendBridge(request.build())
                 .thenApply(LxPlaybackResolver::parseLyrics);
     }
 
@@ -63,7 +64,26 @@ public final class LxPlaybackResolver {
             response.body().close();
             throw new IOException("Audio server returned HTTP " + response.statusCode());
         }
+        String contentType = response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
+        if (!contentType.isEmpty() && !contentType.startsWith("audio/")
+                && !contentType.startsWith("application/octet-stream")) {
+            response.body().close();
+            throw new IOException("Audio server returned unsupported Content-Type");
+        }
         return response;
+    }
+
+    private CompletableFuture<BridgeResponse> sendBridge(HttpRequest request) {
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).thenApply(response -> {
+            String contentType = response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
+            if (!contentType.isEmpty() && !contentType.contains("json") && !contentType.startsWith("text/plain")) {
+                throw new IllegalStateException("Playback API must return JSON");
+            }
+            if (response.body().length > MAX_RESOLVER_BYTES) {
+                throw new IllegalStateException("Playback API response exceeds 1 MiB");
+            }
+            return new BridgeResponse(response.statusCode(), new String(response.body(), StandardCharsets.UTF_8));
+        });
     }
 
     private static URI parseEndpoint() {
@@ -104,8 +124,8 @@ public final class LxPlaybackResolver {
         return root;
     }
 
-    static String parseLyrics(HttpResponse<String> response) {
-        if (response.statusCode() < 200 || response.statusCode() >= 300) return "";
+    static String parseLyrics(BridgeResponse response) {
+        if (response.status() < 200 || response.status() >= 300) return "";
         JsonElement json = JsonParser.parseString(response.body());
         if (!json.isJsonObject()) return json.isJsonPrimitive() ? json.getAsString() : "";
         JsonObject object = json.getAsJsonObject();
@@ -130,9 +150,9 @@ public final class LxPlaybackResolver {
         return "%d:%02d".formatted(seconds / 60, seconds % 60);
     }
 
-    private static URI parseResponse(URI endpoint, HttpResponse<String> response) {
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IllegalStateException("Playback API returned HTTP " + response.statusCode());
+    private static URI parseResponse(URI endpoint, BridgeResponse response) {
+        if (response.status() < 200 || response.status() >= 300) {
+            throw new IllegalStateException("Playback API returned HTTP " + response.status());
         }
         JsonElement json = JsonParser.parseString(response.body());
         String url = null;
@@ -196,4 +216,6 @@ public final class LxPlaybackResolver {
     private static Duration timeout() {
         return Duration.ofSeconds(MusicBoxConfig.HTTP_TIMEOUT_SECONDS.getAsInt());
     }
+
+    record BridgeResponse(int status, String body) { }
 }
