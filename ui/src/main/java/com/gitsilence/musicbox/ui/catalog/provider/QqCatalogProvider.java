@@ -7,6 +7,8 @@ import java.util.concurrent.CompletableFuture;
 
 /** Catalog adapter for QQ Music's public web search endpoints. Playback remains server-resolved. */
 public final class QqCatalogProvider implements MusicCatalogProvider {
+    private static final Set<String> PLAYLIST_HOSTS = Set.of("y.qq.com", "i.y.qq.com", "c.y.qq.com");
+    private static final java.util.regex.Pattern PLAYLIST_PATH = java.util.regex.Pattern.compile("/(?:n/ryqq/)?playlist/(\\d+)");
     private static final String TRACK_SEARCH = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp";
     private static final String PLAYLIST_SEARCH = "https://c.y.qq.com/soso/fcgi-bin/client_music_search_songlist";
     private static final String PLAYLIST_DETAIL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg";
@@ -38,7 +40,9 @@ public final class QqCatalogProvider implements MusicCatalogProvider {
     @Override public CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist) {
         return http.getJson(PLAYLIST_DETAIL, CatalogHttp.params("type", 1, "json", 1, "utf8", 1, "onlysong", 0,
                         "disstid", playlist.id(), "format", "json"), HEADERS)
-                .thenApply(json -> {
+                .thenApply(QqCatalogProvider::parseDetail);
+    }
+    static PlaylistDetail parseDetail(JsonElement json) {
                     JsonArray lists = JsonSupport.array(root(json), "cdlist");
                     if (lists.isEmpty() || !lists.get(0).isJsonObject()) throw new CatalogException("QQ Music playlist was unavailable");
                     JsonObject item = lists.get(0).getAsJsonObject();
@@ -47,7 +51,11 @@ public final class QqCatalogProvider implements MusicCatalogProvider {
                             JsonSupport.string(item, "logo"), JsonSupport.integer(item, "songnum"),
                             JsonSupport.number(item, "visitnum"), JsonSupport.string(item, "desc"));
                     return new PlaylistDetail(detail, parseTracks(JsonSupport.array(item, "songlist")));
-                });
+    }
+    @Override public com.gitsilence.musicbox.ui.catalog.PlaylistImportRef normalizePlaylist(String input) {
+        String id = PlaylistUrlSupport.pathNumericId(input, PLAYLIST_HOSTS, PLAYLIST_PATH, "id", "disstid");
+        return new com.gitsilence.musicbox.ui.catalog.PlaylistImportRef(platform(), id,
+                "https://y.qq.com/n/ryqq/playlist/" + id);
     }
 
     static List<CatalogTrack> parseTracks(JsonArray values) {

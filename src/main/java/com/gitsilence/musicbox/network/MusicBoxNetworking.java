@@ -8,6 +8,7 @@ import com.gitsilence.musicbox.network.payload.StopRequestPayload;
 import com.gitsilence.musicbox.network.payload.StopTrackPayload;
 import com.gitsilence.musicbox.network.payload.QueueRequestPayload;
 import com.gitsilence.musicbox.network.payload.QueueStatePayload;
+import com.gitsilence.musicbox.network.payload.*;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -18,7 +19,7 @@ public final class MusicBoxNetworking {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("4");
+        PayloadRegistrar registrar = event.registrar("5");
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             registerClientboundHandlers(registrar);
@@ -29,6 +30,9 @@ public final class MusicBoxNetworking {
         registrar.playToServer(RequestTrackPayload.TYPE, RequestTrackPayload.STREAM_CODEC, ServerPayloadHandlers::requestTrack);
         registrar.playToServer(StopRequestPayload.TYPE, StopRequestPayload.STREAM_CODEC, ServerPayloadHandlers::stopTrack);
         registrar.playToServer(QueueRequestPayload.TYPE, QueueRequestPayload.STREAM_CODEC, ServerPayloadHandlers::queueRequest);
+        registrar.playToServer(SharedPlaylistsRequestPayload.TYPE, SharedPlaylistsRequestPayload.STREAM_CODEC, ServerPayloadHandlers::sharedPlaylists);
+        registrar.playToServer(ImportPlaylistPayload.TYPE, ImportPlaylistPayload.STREAM_CODEC, ServerPayloadHandlers::importPlaylist);
+        registrar.playToServer(DeleteSharedPlaylistPayload.TYPE, DeleteSharedPlaylistPayload.STREAM_CODEC, ServerPayloadHandlers::deleteSharedPlaylist);
     }
 
     private static void registerClientboundHandlers(PayloadRegistrar registrar) {
@@ -36,6 +40,7 @@ public final class MusicBoxNetworking {
         registrar.playToClient(StartTrackPayload.TYPE, StartTrackPayload.STREAM_CODEC, ClientPayloadHandlers::startTrack);
         registrar.playToClient(StopTrackPayload.TYPE, StopTrackPayload.STREAM_CODEC, ClientPayloadHandlers::stopTrack);
         registrar.playToClient(QueueStatePayload.TYPE, QueueStatePayload.STREAM_CODEC, ClientPayloadHandlers::queueState);
+        registrar.playToClient(SharedPlaylistsPayload.TYPE, SharedPlaylistsPayload.STREAM_CODEC, ClientPayloadHandlers::sharedPlaylists);
     }
 
     private static void registerClientboundPlaceholders(PayloadRegistrar registrar) {
@@ -46,6 +51,8 @@ public final class MusicBoxNetworking {
         registrar.playToClient(StopTrackPayload.TYPE, StopTrackPayload.STREAM_CODEC, (payload, context) -> {
         });
         registrar.playToClient(QueueStatePayload.TYPE, QueueStatePayload.STREAM_CODEC, (payload, context) -> {
+        });
+        registrar.playToClient(SharedPlaylistsPayload.TYPE, SharedPlaylistsPayload.STREAM_CODEC, (payload, context) -> {
         });
     }
 }

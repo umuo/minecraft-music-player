@@ -53,6 +53,14 @@ tasks.register('additionalProvidersUnitTest', JavaExec) {
     dependsOn testClasses
 }
 
+tasks.register('playlistImportProviderUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates playlist URL allowlists and five platform fixture parsers without live APIs.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.ui.catalog.provider.PlaylistImportProviderTest'
+    dependsOn testClasses
+}
+
 tasks.named('check').configure {
-    dependsOn coverUnitTest, additionalProvidersUnitTest
+    dependsOn coverUnitTest, additionalProvidersUnitTest, playlistImportProviderUnitTest
 }

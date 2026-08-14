@@ -32,9 +32,9 @@ Right-click a placed music box, then:
 4. Select a result and use Open/Play; double-clicking also performs the primary action.
 5. Cycle `128k`, `320k`, `flac`, and `flac24bit` before requesting playback.
 
-Playback is enabled only when the platform metadata advertises the selected format. Migu currently exposes
-track and playlist search through its public catalog API, but its former public playlist-detail route is retired;
-opening a Migu playlist therefore reports an explicit unavailable error instead of returning fabricated tracks.
+Playback is enabled only when the platform metadata advertises the selected format. Playlist detail/import uses
+public catalog responses for Kugou, NetEase, QQ Music, Kuwo, and Migu; an empty, changed, or rejected platform
+response is reported as an error and is never replaced with fabricated tracks.
 
 The browser remembers separate queries for every platform/tab during the current client session. `Recent` cycles
 through the latest eight searches. Use `Up`/`Down` to select, `Enter` to open or play, `Ctrl+F` to focus search,
@@ -42,6 +42,20 @@ and `Esc` to return from a playlist without losing the previous page and scroll 
 
 Catalog metadata is read from the platforms' public web endpoints. Playback remains separate: a client sends only
 track metadata and intent, the server resolves it, and clients stream the resulting URL directly from the CDN.
+
+### Shared imported playlists
+
+The `Shared` tab lists playlists imported for the whole integrated or dedicated server. Select a platform, paste
+an allow-listed public playlist URL or playlist ID into the input, then choose `Import`. Opening and playback are
+available to every player; import and delete require Minecraft permission level 2 or higher and are revalidated by
+the server. Changes are broadcast to connected clients.
+
+Public playlist metadata is persisted per world at
+`world/serverconfig/musicbox/shared_playlists.json` (the world directory varies by host). The file contains only
+canonical public URLs, platform/playlist identity, display metadata, and safe track metadata. Resolver URLs,
+tokens, audio URLs, and server configuration are never stored in it or sent in the shared-playlist payload.
+Limits are 64 shared playlists, 500 tracks per playlist, a 2 MiB aggregate public payload, a 4 MiB platform HTTP
+response, and a 20-second import timeout.
 
 ## Playback resolver API
 

@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 
 final class CatalogHttp {
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
+    private static final int MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(TIMEOUT)
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -48,12 +49,13 @@ final class CatalogHttp {
                 .GET();
         headers.forEach(builder::header);
         HttpRequest request = builder.build();
-        return client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        return client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
                 .thenApply(response -> {
                     if (response.statusCode() < 200 || response.statusCode() >= 300) {
                         throw new CatalogException("Music platform returned HTTP " + response.statusCode());
                     }
-                    return response.body();
+                    if (response.body().length > MAX_RESPONSE_BYTES) throw new CatalogException("Music platform response was too large");
+                    return new String(response.body(), StandardCharsets.UTF_8);
                 });
     }
 

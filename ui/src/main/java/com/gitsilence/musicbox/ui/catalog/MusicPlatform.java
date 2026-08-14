@@ -22,4 +22,12 @@ public enum MusicPlatform {
     public String translationKey() {
         return translationKey;
     }
+
+    public static MusicPlatform fromSource(String source) {
+        if (source == null) throw new IllegalArgumentException("Unknown music platform");
+        for (MusicPlatform platform : values()) {
+            if (platform.source.equalsIgnoreCase(source) || platform.name().equalsIgnoreCase(source)) return platform;
+        }
+        throw new IllegalArgumentException("Unknown music platform");
+    }
 }

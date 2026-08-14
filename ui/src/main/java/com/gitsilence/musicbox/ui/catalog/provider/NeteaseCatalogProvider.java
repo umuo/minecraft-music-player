@@ -12,9 +12,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 public final class NeteaseCatalogProvider implements MusicCatalogProvider {
+    private static final Set<String> PLAYLIST_HOSTS = Set.of("music.163.com", "y.music.163.com");
     private static final String SEARCH_URL = "https://music.163.com/api/search/get/web";
     private static final String PLAYLIST_URL = "https://music.163.com/api/playlist/list";
     private static final String DETAIL_URL = "https://music.163.com/api/v6/playlist/detail";
@@ -74,7 +76,10 @@ public final class NeteaseCatalogProvider implements MusicCatalogProvider {
     @Override
     public CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist) {
         return http.getJson(DETAIL_URL, CatalogHttp.params("id", playlist.id(), "n", 1000, "s", 8))
-                .thenApply(json -> {
+                .thenApply(NeteaseCatalogProvider::parseDetail);
+    }
+
+    static PlaylistDetail parseDetail(JsonElement json) {
                     JsonObject body = root(json);
                     if (JsonSupport.integer(body, "code") != 200) {
                         throw new CatalogException("NetEase rejected the playlist request");
@@ -82,7 +87,12 @@ public final class NeteaseCatalogProvider implements MusicCatalogProvider {
                     JsonObject rawPlaylist = JsonSupport.object(body, "playlist");
                     CatalogPlaylist detail = parsePlaylist(rawPlaylist);
                     return new PlaylistDetail(detail, parseTracks(JsonSupport.array(rawPlaylist, "tracks")));
-                });
+    }
+
+    @Override public com.gitsilence.musicbox.ui.catalog.PlaylistImportRef normalizePlaylist(String input) {
+        String id = PlaylistUrlSupport.numericIdOrUrl(input, PLAYLIST_HOSTS, "id", "playlistId");
+        return new com.gitsilence.musicbox.ui.catalog.PlaylistImportRef(platform(), id,
+                "https://music.163.com/#/playlist?id=" + id);
     }
 
     private static JsonObject root(JsonElement json) {
@@ -93,7 +103,7 @@ public final class NeteaseCatalogProvider implements MusicCatalogProvider {
         return root;
     }
 
-    private static List<CatalogTrack> parseTracks(JsonArray rawTracks) {
+    static List<CatalogTrack> parseTracks(JsonArray rawTracks) {
         List<CatalogTrack> tracks = new ArrayList<>();
         for (JsonElement element : rawTracks) {
             if (!element.isJsonObject()) continue;

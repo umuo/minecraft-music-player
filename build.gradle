@@ -203,9 +203,16 @@ tasks.register('resolverSourcesUnitTest', JavaExec) {
     mainClass = 'com.gitsilence.musicbox.network.payload.ResolverSourcesTest'
     dependsOn testClasses
 }
+tasks.register('sharedPlaylistUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates shared playlist persistence, permissions and secret-free network payloads.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.server.playlist.SharedPlaylistTest'
+    dependsOn testClasses
+}
 tasks.named('check').configure {
     dependsOn queueUnitTest, lyricsUnitTest, playbackProgressUnitTest, spatialAudioUnitTest, safeLxUnitTest,
-            serverResolverUnitTest, resolverSourcesUnitTest
+            serverResolverUnitTest, resolverSourcesUnitTest, sharedPlaylistUnitTest
 }
 tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false

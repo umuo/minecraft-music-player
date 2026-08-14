@@ -10,6 +10,7 @@ import com.gitsilence.musicbox.ui.catalog.PlaylistDetail;
 import com.gitsilence.musicbox.ui.catalog.ResolverSourceInfo;
 import com.gitsilence.musicbox.ui.state.BrowserSessionState;
 import com.gitsilence.musicbox.ui.cover.CoverTextureCache;
+import com.gitsilence.musicbox.server.playlist.SharedPlaylist;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import net.minecraft.Util;
@@ -50,11 +51,16 @@ public final class MusicBrowserScreen extends Screen {
     private final TrackPlayHandler enqueueHandler;
     private final QueueControlHandler queueControlHandler;
     private final Runnable stopHandler;
+    private final PlaylistImportHandler importHandler;
+    private final java.util.function.Consumer<String> deleteHandler;
+    private final Runnable sharedRefreshHandler;
     private final String initialQuality;
     private final List<ResolverSourceInfo> resolverSources;
     private final CoverTextureCache covers = new CoverTextureCache();
     private List<String> queue = List.of();
     private boolean queueView;
+    private List<SharedPlaylist> sharedPlaylists;
+    private SharedPlaylist selectedSharedPlaylist;
 
     private MusicPlatform platform;
     private ViewMode mode;
@@ -90,6 +96,9 @@ public final class MusicBrowserScreen extends Screen {
     private StyledButton miguButton;
     private StyledButton tracksButton;
     private StyledButton playlistsButton;
+    private StyledButton sharedButton;
+    private StyledButton importButton;
+    private StyledButton deleteButton;
     private StyledButton previousButton;
     private StyledButton nextButton;
     private StyledButton backButton;
@@ -100,10 +109,13 @@ public final class MusicBrowserScreen extends Screen {
     private StyledButton addButton;
     private StyledButton skipButton;
     private StyledButton sourceButton;
+    private StyledButton searchButton;
 
     public MusicBrowserScreen(String initialQuality, List<ResolverSourceInfo> resolverSources,
                               TrackPlayHandler playHandler, TrackPlayHandler enqueueHandler,
-                              QueueControlHandler queueControlHandler, Runnable stopHandler) {
+                              QueueControlHandler queueControlHandler, Runnable stopHandler,
+                              PlaylistImportHandler importHandler, java.util.function.Consumer<String> deleteHandler,
+                              Runnable sharedRefreshHandler, List<SharedPlaylist> initialSharedPlaylists) {
         super(Component.translatable("screen.musicbox.title"));
         this.initialQuality = QUALITIES.contains(initialQuality) ? initialQuality : "320k";
         this.platform = SESSION.platform();
@@ -118,6 +130,10 @@ public final class MusicBrowserScreen extends Screen {
         this.enqueueHandler = enqueueHandler;
         this.queueControlHandler = queueControlHandler;
         this.stopHandler = stopHandler;
+        this.importHandler = importHandler;
+        this.deleteHandler = deleteHandler;
+        this.sharedRefreshHandler = sharedRefreshHandler;
+        this.sharedPlaylists = List.copyOf(initialSharedPlaylists);
     }
 
     @Override
@@ -141,14 +157,17 @@ public final class MusicBrowserScreen extends Screen {
         miguButton = addStyled(left + 200, navY, 42, 18,
                 Component.translatable(MusicPlatform.MIGU.translationKey()), ButtonStyle.TAB,
                 () -> switchPlatform(MusicPlatform.MIGU));
-        sourceButton = addStyled(left + 244, navY, 88, 18, sourceLabel(), ButtonStyle.NORMAL,
+        sourceButton = addStyled(left + 244, navY, 48, 18, sourceLabel(), ButtonStyle.NORMAL,
                 this::cycleResolverSource);
-        tracksButton = addStyled(right - 124, navY, 54, 18,
+        tracksButton = addStyled(right - 164, navY, 48, 18,
                 Component.translatable("screen.musicbox.tab.tracks"), ButtonStyle.TAB,
                 () -> switchMode(ViewMode.TRACKS));
-        playlistsButton = addStyled(right - 68, navY, 60, 18,
+        playlistsButton = addStyled(right - 114, navY, 54, 18,
                 Component.translatable("screen.musicbox.tab.playlists"), ButtonStyle.TAB,
                 () -> switchMode(ViewMode.PLAYLISTS));
+        sharedButton = addStyled(right - 58, navY, 50, 18,
+                Component.translatable("screen.musicbox.tab.shared"), ButtonStyle.TAB,
+                () -> switchMode(ViewMode.SHARED));
 
         int searchY = navY + 31;
         int searchButtonWidth = 48;
@@ -161,16 +180,19 @@ public final class MusicBrowserScreen extends Screen {
         searchField.setTextColorUneditable(TEXT_DIM);
         searchField.setHint(Component.translatable(mode == ViewMode.TRACKS
                 ? "screen.musicbox.search.hint.tracks" : "screen.musicbox.search.hint.playlists"));
-        searchField.setMaxLength(80);
+        searchField.setMaxLength(512);
         searchField.setValue(SESSION.query(platform, mode == ViewMode.PLAYLISTS));
         searchField.setResponder(value -> {
             SESSION.query(platform, mode == ViewMode.PLAYLISTS, value);
             historyIndex = -1;
+            updateButtons();
         });
-        addStyled(right - searchButtonWidth - historyButtonWidth - 6, searchY, searchButtonWidth, 20,
+        searchButton = addStyled(right - searchButtonWidth - historyButtonWidth - 6, searchY, searchButtonWidth, 20,
                 Component.translatable("screen.musicbox.search"), ButtonStyle.ACCENT, () -> search(1));
         addStyled(right - historyButtonWidth, searchY, historyButtonWidth, 20,
                 Component.translatable("screen.musicbox.history"), ButtonStyle.NORMAL, this::cycleHistory);
+        importButton = addStyled(right - searchButtonWidth - historyButtonWidth - 6, searchY, searchButtonWidth, 20,
+                Component.translatable("screen.musicbox.import"), ButtonStyle.ACCENT, this::importSharedPlaylist);
 
         int bottom = height - 29;
         previousButton = addStyled(left + 8, bottom, 22, 20,
@@ -192,13 +214,16 @@ public final class MusicBrowserScreen extends Screen {
                 ButtonStyle.GHOST, () -> queueControlHandler.apply(QueueOperation.SKIP, 0));
         addButton = addStyled(right - 146, bottom, 40, 20, Component.translatable("screen.musicbox.enqueue"),
                 ButtonStyle.NORMAL, this::enqueueSelected);
+        deleteButton = addStyled(right - 146, bottom, 40, 20, Component.translatable("screen.musicbox.delete"),
+                ButtonStyle.DANGER, this::deleteSelectedShared);
         playButton = addStyled(right - 104, bottom, 48, 20, Component.translatable("screen.musicbox.play"),
                 ButtonStyle.ACCENT, this::primaryAction);
         addStyled(right - 54, bottom, 46, 20, Component.translatable("screen.musicbox.stop"), ButtonStyle.DANGER,
                 stopHandler);
 
         updateButtons();
-        if (mode == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
+        if (mode == ViewMode.SHARED) applySharedFilter();
+        else if (mode == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
     }
 
     public void updateQueue(List<String> tracks) {
@@ -208,6 +233,30 @@ public final class MusicBrowserScreen extends Screen {
             selectedVisibleIndex = -1;
             updateButtons();
         }
+    }
+
+    public void updateSharedPlaylists(List<SharedPlaylist> values, String message) {
+        sharedPlaylists = List.copyOf(values);
+        if (mode == ViewMode.SHARED && !playlistDetail) applySharedFilter();
+        if (message != null && !message.isBlank()) {
+            status = Component.translatable("screen.musicbox.shared." + message);
+            errorStatus = message.endsWith("failed") || message.equals("permission_denied");
+        }
+        updateButtons();
+    }
+
+    private void importSharedPlaylist() {
+        String input = searchField.getValue().strip();
+        if (input.isEmpty()) { status = Component.translatable("screen.musicbox.status.enter_playlist_url"); return; }
+        importHandler.importPlaylist(platform, input, "");
+        status = Component.translatable("screen.musicbox.status.importing");
+        errorStatus = false;
+    }
+
+    private void deleteSelectedShared() {
+        if (selectedSharedPlaylist == null) return;
+        deleteHandler.accept(selectedSharedPlaylist.key());
+        status = Component.translatable("screen.musicbox.status.deleting");
     }
 
     private void toggleQueue() {
@@ -250,16 +299,20 @@ public final class MusicBrowserScreen extends Screen {
         if (mode == next && !playlistDetail) return;
         rememberCurrentQuery();
         mode = next;
-        SESSION.playlistMode(next == ViewMode.PLAYLISTS);
+        SESSION.playlistMode(next != ViewMode.TRACKS);
         playlistDetail = false;
         clearResults();
         restoreQuery();
-        if (next == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
+        searchField.setHint(Component.translatable(next == ViewMode.TRACKS ? "screen.musicbox.search.hint.tracks"
+                : next == ViewMode.PLAYLISTS ? "screen.musicbox.search.hint.playlists" : "screen.musicbox.search.hint.shared"));
+        if (next == ViewMode.SHARED) { sharedRefreshHandler.run(); applySharedFilter(); }
+        else if (next == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
         updateButtons();
     }
 
     private void search(int requestedPage) {
         if (loading || requestedPage < 1) return;
+        if (mode == ViewMode.SHARED) { applySharedFilter(); return; }
         String query = searchField.getValue().strip();
         if (mode == ViewMode.TRACKS && query.isEmpty()) {
             status = Component.translatable("screen.musicbox.status.enter_query");
@@ -281,6 +334,19 @@ public final class MusicBrowserScreen extends Screen {
         }
     }
 
+    private void applySharedFilter() {
+        String query = searchField == null ? "" : searchField.getValue().strip().toLowerCase(java.util.Locale.ROOT);
+        List<SharedPlaylist> filtered = sharedPlaylists.stream().filter(value -> query.isEmpty()
+                        || value.name().toLowerCase(java.util.Locale.ROOT).contains(query)
+                        || value.creator().toLowerCase(java.util.Locale.ROOT).contains(query)
+                        || value.playlistId().contains(query))
+                .filter(value -> value.musicPlatform() == platform).toList();
+        playlists = filtered.stream().map(SharedPlaylist::toCatalogPlaylist).toList();
+        tracks = List.of(); currentPage = null; page = 1; resetSelection();
+        status = Component.translatable("screen.musicbox.status.shared_results", playlists.size());
+        errorStatus = false; updateButtons();
+    }
+
     private void openPlaylist(CatalogPlaylist playlist) {
         if (loading) return;
         if (!playlistDetail) {
@@ -289,6 +355,15 @@ public final class MusicBrowserScreen extends Screen {
             parentPageNumber = page;
             parentScrollOffset = scrollOffset;
             parentSelectedIndex = selectedVisibleIndex < 0 ? -1 : scrollOffset + selectedVisibleIndex;
+        }
+        if (mode == ViewMode.SHARED) {
+            selectedSharedPlaylist = sharedPlaylists.stream().filter(value -> value.musicPlatform() == playlist.platform()
+                    && value.playlistId().equals(playlist.id())).findFirst().orElse(null);
+            if (selectedSharedPlaylist == null) return;
+            tracks = selectedSharedPlaylist.tracks().stream().map(track -> track.toCatalogTrack(playlist.platform())).toList();
+            playlists = List.of(); playlistDetail = true; resetSelection(); selectedPlaylist = playlist;
+            status = Component.translatable("screen.musicbox.status.playlist_tracks", tracks.size()); updateButtons();
+            return;
         }
         int generation = ++requestGeneration;
         selectedPlaylist = playlist;
@@ -361,6 +436,7 @@ public final class MusicBrowserScreen extends Screen {
         scrollOffset = parentScrollOffset;
         selectedVisibleIndex = parentSelectedIndex < 0 ? -1 : parentSelectedIndex - scrollOffset;
         selectedTrack = null;
+        selectedSharedPlaylist = null;
         selectedPlaylist = parentSelectedIndex >= 0 && parentSelectedIndex < playlists.size()
                 ? playlists.get(parentSelectedIndex) : null;
         status = Component.translatable("screen.musicbox.status.results",
@@ -371,6 +447,7 @@ public final class MusicBrowserScreen extends Screen {
 
     private void refresh() {
         if (loading) return;
+        if (mode == ViewMode.SHARED) { sharedRefreshHandler.run(); applySharedFilter(); return; }
         if (playlistDetail && selectedPlaylist != null) openPlaylist(selectedPlaylist);
         else search(page);
     }
@@ -399,8 +476,8 @@ public final class MusicBrowserScreen extends Screen {
     }
 
     private void updateSearchHint() {
-        searchField.setHint(Component.translatable(mode == ViewMode.TRACKS
-                ? "screen.musicbox.search.hint.tracks" : "screen.musicbox.search.hint.playlists"));
+        searchField.setHint(Component.translatable(mode == ViewMode.TRACKS ? "screen.musicbox.search.hint.tracks"
+                : mode == ViewMode.PLAYLISTS ? "screen.musicbox.search.hint.playlists" : "screen.musicbox.search.hint.shared"));
     }
 
     private void onMainThread(int generation, Runnable action) {
@@ -441,6 +518,7 @@ public final class MusicBrowserScreen extends Screen {
         selectedVisibleIndex = -1;
         selectedTrack = null;
         selectedPlaylist = null;
+        selectedSharedPlaylist = null;
         lastClickIndex = -1;
     }
 
@@ -501,6 +579,7 @@ public final class MusicBrowserScreen extends Screen {
         miguButton.active = !loading && platform != MusicPlatform.MIGU;
         tracksButton.active = !loading && (mode != ViewMode.TRACKS || playlistDetail);
         playlistsButton.active = !loading && (mode != ViewMode.PLAYLISTS || playlistDetail);
+        sharedButton.active = !loading && (mode != ViewMode.SHARED || playlistDetail);
         kugouButton.selected = platform == MusicPlatform.KUGOU;
         neteaseButton.selected = platform == MusicPlatform.NETEASE;
         qqButton.selected = platform == MusicPlatform.QQ;
@@ -508,6 +587,10 @@ public final class MusicBrowserScreen extends Screen {
         miguButton.selected = platform == MusicPlatform.MIGU;
         tracksButton.selected = mode == ViewMode.TRACKS && !playlistDetail;
         playlistsButton.selected = mode == ViewMode.PLAYLISTS || playlistDetail;
+        sharedButton.selected = mode == ViewMode.SHARED;
+        searchButton.visible = mode != ViewMode.SHARED;
+        importButton.visible = mode == ViewMode.SHARED && !playlistDetail;
+        importButton.active = !loading && !searchField.getValue().isBlank();
         previousButton.active = !loading && !playlistDetail && currentPage != null && currentPage.hasPrevious();
         nextButton.active = !loading && !playlistDetail && currentPage != null && currentPage.hasNext();
         previousButton.visible = !playlistDetail;
@@ -521,6 +604,9 @@ public final class MusicBrowserScreen extends Screen {
         queueButton.active = !loading;
         addButton.active = !loading && (queueView ? !queue.isEmpty()
                 : selectedTrack != null && selectedTrack.hasQuality(quality) && sourceSupportsSelection());
+        addButton.visible = mode != ViewMode.SHARED || playlistDetail || queueView;
+        deleteButton.visible = mode == ViewMode.SHARED && !playlistDetail && !queueView;
+        deleteButton.active = !loading && selectedSharedPlaylist != null;
         addButton.setMessage(Component.translatable(queueView ? "screen.musicbox.clear" : "screen.musicbox.enqueue"));
         skipButton.active = !loading;
         boolean canPlayTrack = selectedTrack != null && selectedTrack.hasQuality(quality) && sourceSupportsSelection();
@@ -545,14 +631,14 @@ public final class MusicBrowserScreen extends Screen {
         drawWorkspace(graphics, left, right, panelBottom);
         drawText(graphics, title, left + 10, PANEL_TOP + 8, TEXT);
         String context = Component.translatable(platform.translationKey()).getString() + "  ·  "
-                + Component.translatable(mode == ViewMode.TRACKS
-                        ? "screen.musicbox.tab.tracks" : "screen.musicbox.tab.playlists").getString();
+                + Component.translatable(mode == ViewMode.TRACKS ? "screen.musicbox.tab.tracks"
+                        : mode == ViewMode.PLAYLISTS ? "screen.musicbox.tab.playlists" : "screen.musicbox.tab.shared").getString();
         context = font.plainSubstrByWidth(context, Math.max(40, (right - left) / 2 - 18));
         drawText(graphics, Component.literal(context), right - 10 - font.width(context), PANEL_TOP + 8, TEXT_DIM);
 
         String searchDescription = Component.translatable(mode == ViewMode.TRACKS
-                ? "screen.musicbox.search.description.tracks"
-                : "screen.musicbox.search.description.playlists").getString();
+                ? "screen.musicbox.search.description.tracks" : mode == ViewMode.PLAYLISTS
+                ? "screen.musicbox.search.description.playlists" : "screen.musicbox.search.description.shared").getString();
         drawText(graphics, Component.literal(font.plainSubstrByWidth(searchDescription, right - left - 20)),
                 left + 10, PANEL_TOP + 53, TEXT_DIM);
 
@@ -696,6 +782,9 @@ public final class MusicBrowserScreen extends Screen {
             if (doubleClick) playSelected();
         } else if (!playlists.isEmpty()) {
             selectedPlaylist = playlists.get(index);
+            if (mode == ViewMode.SHARED) selectedSharedPlaylist = sharedPlaylists.stream()
+                    .filter(value -> value.musicPlatform() == selectedPlaylist.platform()
+                            && value.playlistId().equals(selectedPlaylist.id())).findFirst().orElse(null);
             if (doubleClick) openPlaylist(selectedPlaylist);
         }
         updateButtons();
@@ -808,6 +897,9 @@ public final class MusicBrowserScreen extends Screen {
         void apply(QueueOperation operation, int index);
     }
 
+    @FunctionalInterface
+    public interface PlaylistImportHandler { void importPlaylist(MusicPlatform platform, String input, String displayName); }
+
     public enum QueueOperation { REMOVE, SKIP, CLEAR }
 
     private final class StyledButton extends AbstractButton {
@@ -863,6 +955,7 @@ public final class MusicBrowserScreen extends Screen {
 
     private enum ViewMode {
         TRACKS,
-        PLAYLISTS
+        PLAYLISTS,
+        SHARED
     }
 }

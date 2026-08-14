@@ -21,6 +21,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class KugouCatalogProvider implements MusicCatalogProvider {
+    private static final Set<String> PLAYLIST_HOSTS = Set.of("kugou.com", "www.kugou.com", "m.kugou.com", "m3ws.kugou.com");
+    private static final Pattern PLAYLIST_PATH = Pattern.compile("/(?:plist/list|songlist)/(?:gcid_)?([A-Za-z0-9_-]+)");
     private static final String TRACK_SEARCH_URL = "https://songsearch.kugou.com/song_search_v2";
     private static final String PLAYLIST_SEARCH_URL = "https://msearchretry.kugou.com/api/v3/search/special";
     private static final Pattern DETAIL_DATA = Pattern.compile(
@@ -89,6 +91,16 @@ public final class KugouCatalogProvider implements MusicCatalogProvider {
         return http.getText(uri).thenApply(html -> parseDetail(playlist, html));
     }
 
+    @Override public com.gitsilence.musicbox.ui.catalog.PlaylistImportRef normalizePlaylist(String input) {
+        String id = PlaylistUrlSupport.tokenIdOrUrl(input, PLAYLIST_HOSTS, PLAYLIST_PATH,
+                "specialid", "global_collection_id");
+        if (!id.chars().allMatch(Character::isDigit)) {
+            throw new CatalogException("Kugou public detail import currently requires a numeric specialid");
+        }
+        return new com.gitsilence.musicbox.ui.catalog.PlaylistImportRef(platform(), id,
+                "https://m.kugou.com/plist/list/" + id + "/");
+    }
+
     private static JsonObject root(JsonElement json) {
         if (!json.isJsonObject()) throw new CatalogException("Unexpected Kugou response");
         JsonObject root = json.getAsJsonObject();
@@ -151,7 +163,7 @@ public final class KugouCatalogProvider implements MusicCatalogProvider {
         return playlists;
     }
 
-    private static PlaylistDetail parseDetail(CatalogPlaylist playlist, String html) {
+    static PlaylistDetail parseDetail(CatalogPlaylist playlist, String html) {
         Matcher matcher = DETAIL_DATA.matcher(html);
         if (!matcher.find()) throw new CatalogException("Kugou playlist page did not contain song data");
         JsonElement raw = JsonParser.parseString(matcher.group(1));

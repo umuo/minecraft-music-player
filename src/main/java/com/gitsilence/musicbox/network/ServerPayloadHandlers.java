@@ -8,6 +8,8 @@ import com.gitsilence.musicbox.network.payload.StopRequestPayload;
 import com.gitsilence.musicbox.network.payload.StopTrackPayload;
 import com.gitsilence.musicbox.network.payload.QueueRequestPayload;
 import com.gitsilence.musicbox.network.payload.QueueStatePayload;
+import com.gitsilence.musicbox.network.payload.*;
+import com.gitsilence.musicbox.server.playlist.SharedPlaylistService;
 import com.gitsilence.musicbox.playback.TrackRef;
 import com.gitsilence.musicbox.MusicBoxMod;
 import com.gitsilence.musicbox.server.resolver.ServerPlaybackResolver;
@@ -80,6 +82,47 @@ public final class ServerPayloadHandlers {
             case SKIP -> { advance(player.serverLevel(), payload.pos(), musicBox); yield true; }
         };
         if (changed) sendNearby(player.serverLevel(), payload.pos(), new QueueStatePayload(payload.pos(), musicBox.queue()));
+    }
+
+    public static void sharedPlaylists(SharedPlaylistsRequestPayload payload, IPayloadContext context) {
+        if (context.player() instanceof ServerPlayer player) sendShared(player, "");
+    }
+
+    public static void importPlaylist(ImportPlaylistPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) return;
+        if (!player.hasPermissions(SharedPlaylistService.REQUIRED_PERMISSION)) {
+            sendShared(player, "permission_denied");
+            return;
+        }
+        SharedPlaylistService service = SharedPlaylistService.get(player.server);
+        service.importPlaylist(payload.platform(), payload.urlOrId(), payload.displayName())
+                .whenComplete((playlist, error) -> player.server.execute(() -> {
+                    if (error != null) {
+                        MusicBoxMod.LOGGER.warn("Shared playlist import rejected for {}: {}", player.getGameProfile().getName(), rootMessage(error));
+                        sendShared(player, "import_failed");
+                    } else broadcastShared(player.server, "imported");
+                }));
+    }
+
+    public static void deleteSharedPlaylist(DeleteSharedPlaylistPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) return;
+        if (!player.hasPermissions(SharedPlaylistService.REQUIRED_PERMISSION)) {
+            sendShared(player, "permission_denied");
+            return;
+        }
+        boolean deleted;
+        try { deleted = SharedPlaylistService.get(player.server).delete(payload.key()); }
+        catch (RuntimeException error) { deleted = false; MusicBoxMod.LOGGER.error("Could not delete shared playlist", error); }
+        if (deleted) broadcastShared(player.server, "deleted"); else sendShared(player, "delete_failed");
+    }
+
+    private static void sendShared(ServerPlayer player, String message) {
+        PacketDistributor.sendToPlayer(player, new SharedPlaylistsPayload(
+                SharedPlaylistService.get(player.server).snapshot(), message));
+    }
+
+    private static void broadcastShared(net.minecraft.server.MinecraftServer server, String message) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) sendShared(player, message);
     }
 
     public static void advance(ServerLevel level, net.minecraft.core.BlockPos pos, MusicBoxBlockEntity musicBox) {
