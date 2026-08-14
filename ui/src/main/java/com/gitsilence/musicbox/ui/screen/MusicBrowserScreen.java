@@ -16,6 +16,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -23,11 +25,12 @@ import net.minecraft.resources.ResourceLocation;
 
 public final class MusicBrowserScreen extends Screen {
     private static final int PAGE_SIZE = 20;
-    private static final int ROW_HEIGHT = 25;
+    private static final int ROW_HEIGHT = 30;
+    private static final int COVER_SIZE = 24;
     private static final int PANEL_TOP = 10;
     private static final int HEADER_HEIGHT = 25;
-    private static final int LIST_TOP = 87;
-    private static final int FOOTER_HEIGHT = 38;
+    private static final int LIST_TOP = 96;
+    private static final int FOOTER_HEIGHT = 49;
     private static final int GROUND = 0xFF1E1F26;
     private static final int SURFACE = 0xFF252730;
     private static final int FIELD = 0xFF2A2C34;
@@ -123,16 +126,17 @@ public final class MusicBrowserScreen extends Screen {
                 Component.translatable("screen.musicbox.tab.playlists"), ButtonStyle.TAB,
                 () -> switchMode(ViewMode.PLAYLISTS));
 
-        int searchY = navY + 21;
+        int searchY = navY + 31;
         int searchButtonWidth = 48;
         int historyButtonWidth = 44;
-        searchField = addRenderableWidget(new EditBox(font, left + 12, searchY + 5,
-                right - left - searchButtonWidth - historyButtonWidth - 28, 12,
-                Component.translatable("screen.musicbox.search.hint")));
+        searchField = addRenderableWidget(new EditBox(font, left + 13, searchY + 5,
+                right - left - searchButtonWidth - historyButtonWidth - 31, 12,
+                Component.translatable("screen.musicbox.search.narration")));
         searchField.setBordered(false);
         searchField.setTextColor(TEXT);
         searchField.setTextColorUneditable(TEXT_DIM);
-        searchField.setHint(Component.translatable("screen.musicbox.search.hint"));
+        searchField.setHint(Component.translatable(mode == ViewMode.TRACKS
+                ? "screen.musicbox.search.hint.tracks" : "screen.musicbox.search.hint.playlists"));
         searchField.setMaxLength(80);
         searchField.setValue(SESSION.query(platform, mode == ViewMode.PLAYLISTS));
         searchField.setResponder(value -> {
@@ -145,25 +149,28 @@ public final class MusicBrowserScreen extends Screen {
                 Component.translatable("screen.musicbox.history"), ButtonStyle.NORMAL, this::cycleHistory);
 
         int bottom = height - 29;
-        previousButton = addStyled(left + 8, bottom, 24, 20, Component.literal("‹"), ButtonStyle.GHOST,
+        previousButton = addStyled(left + 8, bottom, 22, 20,
+                Component.translatable("screen.musicbox.previous"), ButtonStyle.GHOST,
                 () -> search(page - 1));
-        nextButton = addStyled(left + 34, bottom, 24, 20, Component.literal("›"), ButtonStyle.GHOST,
+        nextButton = addStyled(left + 32, bottom, 22, 20,
+                Component.translatable("screen.musicbox.next"), ButtonStyle.GHOST,
                 () -> search(page + 1));
         backButton = addStyled(left + 8, bottom, 52, 20, Component.translatable("screen.musicbox.back"),
                 ButtonStyle.NORMAL, this::closePlaylist);
-        refreshButton = addStyled(left + 62, bottom, 24, 20, Component.literal("↻"), ButtonStyle.GHOST,
+        refreshButton = addStyled(left + 56, bottom, 22, 20,
+                Component.translatable("screen.musicbox.refresh"), ButtonStyle.GHOST,
                 this::refresh);
-        qualityButton = addStyled(left + 88, bottom, 78, 20, qualityLabel(), ButtonStyle.NORMAL,
+        qualityButton = addStyled(left + 80, bottom, 64, 20, qualityLabel(), ButtonStyle.NORMAL,
                 this::cycleQuality);
-        queueButton = addStyled(left + 168, bottom, 58, 20, Component.translatable("screen.musicbox.queue"),
+        queueButton = addStyled(left + 146, bottom, 46, 20, Component.translatable("screen.musicbox.queue"),
                 ButtonStyle.NORMAL, this::toggleQueue);
-        skipButton = addStyled(left + 228, bottom, 50, 20, Component.translatable("screen.musicbox.skip"),
+        skipButton = addStyled(left + 194, bottom, 40, 20, Component.translatable("screen.musicbox.skip"),
                 ButtonStyle.GHOST, () -> queueControlHandler.apply(QueueOperation.SKIP, 0));
-        addButton = addStyled(right - 172, bottom, 44, 20, Component.translatable("screen.musicbox.enqueue"),
+        addButton = addStyled(right - 146, bottom, 40, 20, Component.translatable("screen.musicbox.enqueue"),
                 ButtonStyle.NORMAL, this::enqueueSelected);
-        playButton = addStyled(right - 126, bottom, 58, 20, Component.translatable("screen.musicbox.play"),
+        playButton = addStyled(right - 104, bottom, 48, 20, Component.translatable("screen.musicbox.play"),
                 ButtonStyle.ACCENT, this::primaryAction);
-        addStyled(right - 66, bottom, 58, 20, Component.translatable("screen.musicbox.stop"), ButtonStyle.DANGER,
+        addStyled(right - 54, bottom, 46, 20, Component.translatable("screen.musicbox.stop"), ButtonStyle.DANGER,
                 stopHandler);
 
         updateButtons();
@@ -363,7 +370,13 @@ public final class MusicBrowserScreen extends Screen {
 
     private void restoreQuery() {
         searchField.setValue(SESSION.query(platform, mode == ViewMode.PLAYLISTS));
+        updateSearchHint();
         historyIndex = -1;
+    }
+
+    private void updateSearchHint() {
+        searchField.setHint(Component.translatable(mode == ViewMode.TRACKS
+                ? "screen.musicbox.search.hint.tracks" : "screen.musicbox.search.hint.playlists"));
     }
 
     private void onMainThread(int generation, Runnable action) {
@@ -473,33 +486,42 @@ public final class MusicBrowserScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
+        // Background blur is deferred; flush it before drawing this screen or it will blur rows and covers too.
+        graphics.flush();
         int left = panelLeft();
         int right = panelRight();
         int panelBottom = height - 7;
         drawWorkspace(graphics, left, right, panelBottom);
         drawText(graphics, title, left + 10, PANEL_TOP + 8, TEXT);
-        String context = Component.translatable(platform.translationKey()).getString() + "  /  "
+        String context = Component.translatable(platform.translationKey()).getString() + "  ·  "
                 + Component.translatable(mode == ViewMode.TRACKS
                         ? "screen.musicbox.tab.tracks" : "screen.musicbox.tab.playlists").getString();
-        drawText(graphics, Component.literal(context),
-                right - 10 - font.width(context), PANEL_TOP + 8, TEXT_DIM);
+        context = font.plainSubstrByWidth(context, Math.max(40, (right - left) / 2 - 18));
+        drawText(graphics, Component.literal(context), right - 10 - font.width(context), PANEL_TOP + 8, TEXT_DIM);
+
+        String searchDescription = Component.translatable(mode == ViewMode.TRACKS
+                ? "screen.musicbox.search.description.tracks"
+                : "screen.musicbox.search.description.playlists").getString();
+        drawText(graphics, Component.literal(font.plainSubstrByWidth(searchDescription, right - left - 20)),
+                left + 10, PANEL_TOP + 53, TEXT_DIM);
 
         int listTop = LIST_TOP;
         int listBottom = height - FOOTER_HEIGHT;
         graphics.fill(left + 7, listTop - 3, right - 7, listBottom + 2, SURFACE);
         renderRows(graphics, left, right, listTop, listBottom, mouseX, mouseY);
 
-        String header = playlistDetail && selectedPlaylist != null
-                ? font.plainSubstrByWidth(selectedPlaylist.name(), Math.max(40, right - left - 210))
-                : "";
-        if (!header.isEmpty()) drawText(graphics, Component.literal(header), left + 136, PANEL_TOP + 40, CTA);
-        int statusX = left + 172;
+        int statusX = left + 10;
         int statusColor = errorStatus ? ERROR : loading ? CTA : TEXT_DIM;
-        graphics.fill(statusX, height - 21, statusX + 3, height - 18, statusColor);
-        drawText(graphics, Component.literal(font.plainSubstrByWidth(status.getString(), right - statusX - 142)),
-                statusX + 7, height - 24, statusColor);
+        graphics.fill(statusX, height - 42, statusX + 3, height - 39, statusColor);
+        String statusText = playlistDetail && selectedPlaylist != null
+                ? selectedPlaylist.name() + " · " + status.getString() : status.getString();
+        drawText(graphics, Component.literal(font.plainSubstrByWidth(statusText, right - statusX - 12)),
+                statusX + 7, height - 45, statusColor);
 
-        super.render(graphics, mouseX, mouseY, partialTick);
+        // Screen#render applies its background pass here; render widgets directly so custom rows stay sharp.
+        for (GuiEventListener child : children()) {
+            if (child instanceof Renderable renderable) renderable.render(graphics, mouseX, mouseY, partialTick);
+        }
     }
 
     private void drawWorkspace(GuiGraphics graphics, int left, int right, int bottom) {
@@ -510,8 +532,8 @@ public final class MusicBrowserScreen extends Screen {
         for (int y = PANEL_TOP + HEADER_HEIGHT + 8; y < bottom - 4; y += 16) {
             for (int x = left + 8; x < right - 4; x += 16) graphics.fill(x, y, x + 1, y + 1, 0x283F424D);
         }
-        graphics.fill(left + 8, PANEL_TOP + 50, right - 102, PANEL_TOP + 70, FIELD);
-        border(graphics, left + 8, PANEL_TOP + 50, right - left - 110, 20, 1, 0xFF3B3E49);
+        graphics.fill(left + 8, PANEL_TOP + 60, right - 102, PANEL_TOP + 80, FIELD);
+        border(graphics, left + 8, PANEL_TOP + 60, right - left - 110, 20, 1, 0xFF3B3E49);
     }
 
     private void drawText(GuiGraphics graphics, Component text, int x, int y, int color) {
@@ -544,7 +566,9 @@ public final class MusicBrowserScreen extends Screen {
             else if (!playlists.isEmpty()) renderPlaylistRow(graphics, playlists.get(index), left, right, y, displayNumber(index));
         }
         if (total == 0 && !loading) {
-            graphics.drawCenteredString(font, Component.translatable("screen.musicbox.empty_hint"), (left + right) / 2,
+            String emptyHint = font.plainSubstrByWidth(
+                    Component.translatable("screen.musicbox.empty_hint").getString(), right - left - 32);
+            graphics.drawCenteredString(font, Component.literal(emptyHint), (left + right) / 2,
                     top + Math.max(8, (bottom - top) / 2 - 4), TEXT_FAINT);
         }
         if (total > visibleRows) {
@@ -556,42 +580,47 @@ public final class MusicBrowserScreen extends Screen {
     }
 
     private void renderQueueRow(GuiGraphics graphics, String track, int left, int right, int y, int number) {
-        graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
-        graphics.drawString(font, font.plainSubstrByWidth(track, right - left - 70), left + 43, y + 8, TEXT, false);
+        graphics.drawString(font, String.valueOf(number), left + 17, y + 11, TEXT_FAINT, false);
+        graphics.drawString(font, font.plainSubstrByWidth(track, right - left - 70), left + 43, y + 11, TEXT, false);
     }
 
     private void renderTrackRow(GuiGraphics graphics, CatalogTrack track, int left, int right, int y, int number) {
-        graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
-        renderCover(graphics, track.coverUrl(), left + 39, y + 3);
-        int titleX = left + 63;
-        int durationWidth = 38;
-        String title = font.plainSubstrByWidth(track.title(), Math.max(30, (right - left) / 2 - 42));
-        String artist = font.plainSubstrByWidth(track.artist(), Math.max(30, (right - left) / 2 - 52));
-        graphics.drawString(font, title, titleX, y + 3, TEXT, false);
-        graphics.drawString(font, artist, titleX, y + 14, TEXT_DIM, false);
-        String album = font.plainSubstrByWidth(track.album(), Math.max(20, right - left - 220));
-        graphics.drawString(font, album, left + Math.max(170, (right - left) / 2), y + 8, 0xFF79C5D2, false);
-        graphics.drawString(font, formatDuration(track.durationSeconds()), right - durationWidth - 10, y + 8, TEXT_FAINT, false);
+        graphics.drawString(font, String.valueOf(number), left + 17, y + 11, TEXT_FAINT, false);
+        renderCover(graphics, track.coverUrl(), left + 38, y + 3);
+        int titleX = left + 68;
+        String duration = formatDuration(track.durationSeconds());
+        int textRight = right - 14 - font.width(duration);
+        String title = font.plainSubstrByWidth(track.title(), Math.max(30, textRight - titleX - 8));
+        String detail = track.artist();
+        if (!track.album().isBlank()) detail += " · " + track.album();
+        detail = font.plainSubstrByWidth(detail, Math.max(30, right - titleX - 18));
+        graphics.drawString(font, title, titleX, y + 4, TEXT, false);
+        graphics.drawString(font, detail, titleX, y + 17, TEXT_DIM, false);
+        graphics.drawString(font, duration, textRight, y + 4, TEXT_FAINT, false);
     }
 
     private void renderPlaylistRow(GuiGraphics graphics, CatalogPlaylist playlist, int left, int right, int y, int number) {
-        graphics.drawString(font, String.valueOf(number), left + 17, y + 8, TEXT_FAINT, false);
-        renderCover(graphics, playlist.coverUrl(), left + 39, y + 3);
-        String name = font.plainSubstrByWidth(playlist.name(), Math.max(40, right - left - 155));
-        String creator = font.plainSubstrByWidth(playlist.creator(), Math.max(40, right - left - 190));
-        graphics.drawString(font, name, left + 63, y + 3, TEXT, false);
-        graphics.drawString(font, creator, left + 63, y + 14, TEXT_DIM, false);
-        graphics.drawString(font, Component.translatable("screen.musicbox.track_count", playlist.trackCount()), right - 88, y + 8,
-                0xFF79C5D2, false);
+        graphics.drawString(font, String.valueOf(number), left + 17, y + 11, TEXT_FAINT, false);
+        renderCover(graphics, playlist.coverUrl(), left + 38, y + 3);
+        int titleX = left + 68;
+        Component count = Component.translatable("screen.musicbox.track_count", playlist.trackCount());
+        int countX = right - 14 - font.width(count);
+        String name = font.plainSubstrByWidth(playlist.name(), Math.max(40, countX - titleX - 8));
+        String detail = playlist.creator();
+        if (!playlist.description().isBlank()) detail += " · " + playlist.description();
+        detail = font.plainSubstrByWidth(detail, Math.max(40, right - titleX - 18));
+        graphics.drawString(font, name, titleX, y + 4, TEXT, false);
+        graphics.drawString(font, detail, titleX, y + 17, TEXT_DIM, false);
+        graphics.drawString(font, count, countX, y + 4, 0xFF79C5D2, false);
     }
 
     private void renderCover(GuiGraphics graphics, String url, int x, int y) {
         ResourceLocation texture = covers.get(url);
         if (texture == null) {
-            graphics.fill(x, y, x + 19, y + 19, 0xFF343741);
-            graphics.fill(x + 6, y + 5, x + 13, y + 12, 0xFF5A5F6D);
+            graphics.fill(x, y, x + COVER_SIZE, y + COVER_SIZE, 0xFF343741);
+            graphics.fill(x + 7, y + 7, x + 17, y + 17, 0xFF5A5F6D);
         } else {
-            graphics.blit(texture, x, y, 0, 0, 19, 19, 19, 19);
+            graphics.blit(texture, x, y, 0, 0, COVER_SIZE, COVER_SIZE, COVER_SIZE, COVER_SIZE);
         }
     }
 
@@ -761,9 +790,10 @@ public final class MusicBrowserScreen extends Screen {
             if (selected) graphics.fill(getX() + 4, getBottom() - 3, getRight() - 4, getBottom() - 1, CTA);
             int color = !active && !selected ? TEXT_FAINT
                     : style == ButtonStyle.ACCENT || style == ButtonStyle.DANGER ? 0xFFFFFFFF : TEXT;
-            int textX = getX() + (getWidth() - font.width(getMessage())) / 2;
+            String label = font.plainSubstrByWidth(getMessage().getString(), Math.max(1, getWidth() - 8));
+            int textX = getX() + (getWidth() - font.width(label)) / 2;
             int textY = getY() + (getHeight() - font.lineHeight) / 2 + 1;
-            drawText(graphics, getMessage(), textX, textY, color);
+            drawText(graphics, Component.literal(label), textX, textY, color);
         }
 
         @Override
