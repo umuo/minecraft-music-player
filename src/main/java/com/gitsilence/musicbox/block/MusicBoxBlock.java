@@ -21,6 +21,7 @@ import org.jetbrains.annotations.Nullable;
 import com.gitsilence.musicbox.network.ServerPayloadHandlers;
 import com.gitsilence.musicbox.network.payload.QueueStatePayload;
 import net.minecraft.server.level.ServerLevel;
+import com.gitsilence.musicbox.server.resolver.ResolverSourceRegistry;
 
 public final class MusicBoxBlock extends BaseEntityBlock {
     public static final MapCodec<MusicBoxBlock> CODEC = simpleCodec(MusicBoxBlock::new);
@@ -48,7 +49,10 @@ public final class MusicBoxBlock extends BaseEntityBlock {
             BlockHitResult hitResult
     ) {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
-            PacketDistributor.sendToPlayer(serverPlayer, new OpenMusicBoxPayload(pos));
+            var publicSources = ResolverSourceRegistry.configuredSources().values().stream()
+                    .filter(source -> source.enabled() && serverPlayer.hasPermissions(source.permissionLevel()))
+                    .map(source -> source.publicInfo()).toList();
+            PacketDistributor.sendToPlayer(serverPlayer, new OpenMusicBoxPayload(pos, publicSources));
             if (level.getBlockEntity(pos) instanceof MusicBoxBlockEntity musicBox) {
                 PacketDistributor.sendToPlayer(serverPlayer, new QueueStatePayload(pos, musicBox.queue()));
             }

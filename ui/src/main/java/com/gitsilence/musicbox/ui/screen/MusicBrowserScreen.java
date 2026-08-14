@@ -7,6 +7,7 @@ import com.gitsilence.musicbox.ui.catalog.MusicCatalogProvider;
 import com.gitsilence.musicbox.ui.catalog.MusicPlatform;
 import com.gitsilence.musicbox.ui.catalog.PageResult;
 import com.gitsilence.musicbox.ui.catalog.PlaylistDetail;
+import com.gitsilence.musicbox.ui.catalog.ResolverSourceInfo;
 import com.gitsilence.musicbox.ui.state.BrowserSessionState;
 import com.gitsilence.musicbox.ui.cover.CoverTextureCache;
 import java.util.List;
@@ -50,6 +51,7 @@ public final class MusicBrowserScreen extends Screen {
     private final QueueControlHandler queueControlHandler;
     private final Runnable stopHandler;
     private final String initialQuality;
+    private final List<ResolverSourceInfo> resolverSources;
     private final CoverTextureCache covers = new CoverTextureCache();
     private List<String> queue = List.of();
     private boolean queueView;
@@ -69,6 +71,7 @@ public final class MusicBrowserScreen extends Screen {
     private int selectedVisibleIndex = -1;
     private int page = 1;
     private String quality;
+    private ResolverSourceInfo resolverSource;
     private Component status = Component.translatable("screen.musicbox.status.ready");
     private long lastClickTime;
     private int lastClickIndex = -1;
@@ -93,14 +96,21 @@ public final class MusicBrowserScreen extends Screen {
     private StyledButton queueButton;
     private StyledButton addButton;
     private StyledButton skipButton;
+    private StyledButton sourceButton;
 
-    public MusicBrowserScreen(String initialQuality, TrackPlayHandler playHandler, TrackPlayHandler enqueueHandler,
+    public MusicBrowserScreen(String initialQuality, List<ResolverSourceInfo> resolverSources,
+                              TrackPlayHandler playHandler, TrackPlayHandler enqueueHandler,
                               QueueControlHandler queueControlHandler, Runnable stopHandler) {
         super(Component.translatable("screen.musicbox.title"));
         this.initialQuality = QUALITIES.contains(initialQuality) ? initialQuality : "320k";
         this.platform = SESSION.platform();
         this.mode = SESSION.playlistMode() ? ViewMode.PLAYLISTS : ViewMode.TRACKS;
         this.quality = SESSION.qualityOr(this.initialQuality);
+        this.resolverSources = List.copyOf(resolverSources);
+        this.resolverSource = this.resolverSources.stream()
+                .filter(source -> source.id().equals(SESSION.resolverSourceId())).findFirst()
+                .orElse(this.resolverSources.isEmpty() ? null : this.resolverSources.getFirst());
+        if (resolverSource != null) SESSION.resolverSourceId(resolverSource.id());
         this.playHandler = playHandler;
         this.enqueueHandler = enqueueHandler;
         this.queueControlHandler = queueControlHandler;
@@ -119,6 +129,8 @@ public final class MusicBrowserScreen extends Screen {
         neteaseButton = addStyled(left + 66, navY, 66, 18,
                 Component.translatable(MusicPlatform.NETEASE.translationKey()), ButtonStyle.TAB,
                 () -> switchPlatform(MusicPlatform.NETEASE));
+        sourceButton = addStyled(left + 136, navY, 112, 18, sourceLabel(), ButtonStyle.NORMAL,
+                this::cycleResolverSource);
         tracksButton = addStyled(right - 124, navY, 54, 18,
                 Component.translatable("screen.musicbox.tab.tracks"), ButtonStyle.TAB,
                 () -> switchMode(ViewMode.TRACKS));
@@ -200,8 +212,8 @@ public final class MusicBrowserScreen extends Screen {
             queueControlHandler.apply(QueueOperation.CLEAR, 0);
             return;
         }
-        if (selectedTrack == null) return;
-        enqueueHandler.play(selectedTrack, quality);
+        if (selectedTrack == null || !selectedTrack.hasQuality(quality) || !sourceSupportsSelection()) return;
+        enqueueHandler.play(selectedTrack, quality, resolverSource.id());
         status = Component.translatable("screen.musicbox.status.enqueued", selectedTrack.title());
     }
 
@@ -428,13 +440,29 @@ public final class MusicBrowserScreen extends Screen {
         updateButtons();
     }
 
+    private void cycleResolverSource() {
+        if (resolverSources.size() < 2 || resolverSource == null) return;
+        int index = (resolverSources.indexOf(resolverSource) + 1) % resolverSources.size();
+        resolverSource = resolverSources.get(index);
+        SESSION.resolverSourceId(resolverSource.id());
+        sourceButton.setMessage(sourceLabel());
+        status = Component.translatable("screen.musicbox.status.source_selected", resolverSource.displayName());
+        updateButtons();
+    }
+
+    private Component sourceLabel() {
+        return resolverSource == null
+                ? Component.translatable("screen.musicbox.source.none")
+                : Component.translatable("screen.musicbox.source", resolverSource.displayName());
+    }
+
     private Component qualityLabel() {
         return Component.translatable("screen.musicbox.quality_short", quality);
     }
 
     private void playSelected() {
-        if (selectedTrack == null || loading) return;
-        playHandler.play(selectedTrack, quality);
+        if (selectedTrack == null || loading || !selectedTrack.hasQuality(quality) || !sourceSupportsSelection()) return;
+        playHandler.play(selectedTrack, quality, resolverSource.id());
         status = Component.translatable("screen.musicbox.status.requested", selectedTrack.title());
         errorStatus = false;
     }
@@ -471,16 +499,21 @@ public final class MusicBrowserScreen extends Screen {
         refreshButton.active = !loading && (playlistDetail || currentPage != null || mode == ViewMode.PLAYLISTS
                 || !searchField.getValue().isBlank());
         qualityButton.active = !loading;
+        sourceButton.active = !loading && resolverSources.size() > 1;
         queueButton.active = !loading;
         addButton.active = !loading && (queueView ? !queue.isEmpty()
-                : selectedTrack != null && selectedTrack.hasQuality(quality));
+                : selectedTrack != null && selectedTrack.hasQuality(quality) && sourceSupportsSelection());
         addButton.setMessage(Component.translatable(queueView ? "screen.musicbox.clear" : "screen.musicbox.enqueue"));
         skipButton.active = !loading;
-        boolean canPlayTrack = selectedTrack != null && selectedTrack.hasQuality(quality);
+        boolean canPlayTrack = selectedTrack != null && selectedTrack.hasQuality(quality) && sourceSupportsSelection();
         boolean canOpenPlaylist = selectedPlaylist != null && !playlistDetail && !playlists.isEmpty();
         playButton.active = !loading && (queueView ? selectedVisibleIndex >= 0 : canPlayTrack || canOpenPlaylist);
         playButton.setMessage(Component.translatable(queueView ? "screen.musicbox.remove"
                 : canOpenPlaylist ? "screen.musicbox.open" : "screen.musicbox.play"));
+    }
+
+    private boolean sourceSupportsSelection() {
+        return resolverSource != null && resolverSource.supports(platform.source(), quality);
     }
 
     @Override
@@ -749,7 +782,7 @@ public final class MusicBrowserScreen extends Screen {
 
     @FunctionalInterface
     public interface TrackPlayHandler {
-        void play(CatalogTrack track, String quality);
+        void play(CatalogTrack track, String quality, String sourceId);
     }
 
     @FunctionalInterface

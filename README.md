@@ -55,6 +55,29 @@ requireHttps = true
 Clients have no resolver URL or token setting. `config/musicbox-client.toml` contains only UI preferences such
 as `defaultQuality`; the bearer token remains solely in the server config and is never encoded in a game packet.
 
+### Multiple named resolvers
+
+Add one JSON object per entry to the server-only `resolver.sources` list. TOML literal strings avoid escaping.
+Each Bridge can listen on its own loopback port; neither its URL nor token is sent to players:
+
+```toml
+[resolver]
+sources = [
+  '''{"id":"bridge-a","displayName":"Main source","playbackApiUrl":"http://127.0.0.1:9863/v1/music-url","token":"set-only-on-the-server","allowedAudioHosts":["audio-a.example"],"requireHttps":true,"timeoutSeconds":15,"platforms":["kg","wy"],"qualities":["128k","320k","flac"],"capabilities":["musicUrl","lyric"],"enabled":true,"permissionLevel":0}''',
+  '''{"id":"bridge-b","displayName":"Backup source","playbackApiUrl":"http://127.0.0.1:9864/v1/music-url","token":"another-server-secret","allowedAudioHosts":["audio-b.example"],"requireHttps":true,"timeoutSeconds":10,"platforms":["kg"],"qualities":["128k","320k"],"capabilities":["musicUrl"],"enabled":true,"permissionLevel":0}'''
+]
+```
+
+`id` must match `[a-z0-9][a-z0-9_-]{0,31}`. `permissionLevel` uses Minecraft operator levels 0–4. Disabled or
+unauthorized sources are omitted from that player's screen, and the server validates ID, permission, platform,
+quality, and availability again for every play/queue request. The client receives only `id`, `displayName`,
+`platforms`, `qualities`, and `capabilities`; it never receives `playbackApiUrl`, `token`, host allowlists, or
+other internal settings.
+
+The original scalar keys remain supported. A non-empty legacy `playbackApiUrl` automatically creates the source
+`default`, so old configs and persisted tracks keep working. Named entries may coexist with it but cannot reuse
+`default`. If the legacy URL is blank, only `sources` entries are used.
+
 The server sends the following Bridge JSON for both `musicUrl` and `lyric` (only `action` changes):
 
 ```json

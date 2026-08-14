@@ -1,6 +1,5 @@
 package com.gitsilence.musicbox.server.resolver;
 
-import com.gitsilence.musicbox.config.MusicBoxConfig;
 import com.gitsilence.musicbox.playback.TrackRef;
 import com.google.gson.JsonObject;
 import java.net.URI;
@@ -19,16 +18,20 @@ public final class ServerPlaybackResolver {
     public static final int MAX_RESPONSE_BYTES = 1024 * 1024;
     private final HttpClient client;
     private final URI endpoint;
+    private final ResolverSourceConfig source;
 
-    public ServerPlaybackResolver() {
-        endpoint = ResolverSecurityPolicy.validateEndpoint(MusicBoxConfig.PLAYBACK_API_URL.get(), MusicBoxConfig.REQUIRE_HTTPS.get());
+    public ServerPlaybackResolver(ResolverSourceConfig source) {
+        this.source = source;
+        endpoint = ResolverSecurityPolicy.validateEndpoint(source.playbackApiUrl(), source.requireHttps());
         client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).connectTimeout(timeout()).build();
     }
 
     public CompletableFuture<ResolvedTrack> resolve(TrackRef track) {
-        return request(track, "musicUrl").thenCombine(request(track, "lyric"), (audio, lyric) -> {
+        CompletableFuture<Response> lyricRequest = source.capabilities().contains("lyric")
+                ? request(track, "lyric") : CompletableFuture.completedFuture(new Response(200, "{\"lyric\":\"\"}"));
+        return request(track, "musicUrl").thenCombine(lyricRequest, (audio, lyric) -> {
             URI uri = ResolverSecurityPolicy.validateAudio(ResolverResponseParser.audioUrl(audio.status(), audio.body()),
-                    MusicBoxConfig.ALLOWED_AUDIO_HOSTS.get(), MusicBoxConfig.REQUIRE_HTTPS.get());
+                    source.allowedAudioHosts(), source.requireHttps());
             String lrc = ResolverResponseParser.lyrics(lyric.status(), lyric.body());
             if (lrc.length() > 200_000) lrc = lrc.substring(0, 200_000);
             return new ResolvedTrack(uri.toASCIIString(), lrc);
@@ -39,7 +42,7 @@ public final class ServerPlaybackResolver {
         HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint).timeout(timeout()).header("Accept", "application/json")
                 .header("Content-Type", "application/json; charset=utf-8")
                 .POST(HttpRequest.BodyPublishers.ofString(requestJson(track, action).toString()));
-        String token = MusicBoxConfig.PLAYBACK_API_TOKEN.get().strip();
+        String token = source.token().strip();
         if (!token.isEmpty()) builder.header("Authorization", "Bearer " + token);
         return client.sendAsync(builder.build(), HttpResponse.BodyHandlers.ofInputStream()).thenApply(response -> {
             try (InputStream stream = response.body()) {
@@ -73,7 +76,7 @@ public final class ServerPlaybackResolver {
     private static void addType(JsonObject types, String name, String hash) {
         if (hash == null || hash.isBlank()) return; JsonObject value = new JsonObject(); value.addProperty("hash", hash); types.add(name, value);
     }
-    private static Duration timeout() { return Duration.ofSeconds(MusicBoxConfig.HTTP_TIMEOUT_SECONDS.getAsInt()); }
+    private Duration timeout() { return Duration.ofSeconds(source.timeoutSeconds()); }
     private record Response(int status, String body) { }
     public record ResolvedTrack(String audioUrl, String lyrics) { }
 }

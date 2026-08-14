@@ -11,6 +11,9 @@ import com.gitsilence.musicbox.network.payload.QueueStatePayload;
 import com.gitsilence.musicbox.playback.TrackRef;
 import com.gitsilence.musicbox.MusicBoxMod;
 import com.gitsilence.musicbox.server.resolver.ServerPlaybackResolver;
+import com.gitsilence.musicbox.server.resolver.ResolverSourceConfig;
+import com.gitsilence.musicbox.server.resolver.ResolverSourceRegistry;
+import com.gitsilence.musicbox.server.resolver.ResolverSourceSelector;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -36,9 +39,16 @@ public final class ServerPayloadHandlers {
             return;
         }
 
+        ResolverSourceConfig source;
+        try {
+            source = selectSource(payload.track(), player);
+        } catch (IllegalArgumentException error) {
+            rejectSource(player, error);
+            return;
+        }
         musicBox.stop();
         sendNearby(player.serverLevel(), payload.pos(), new StopTrackPayload(payload.pos()));
-        resolveAndStart(player.serverLevel(), payload.pos(), musicBox, payload.track(), player);
+        resolveAndStart(player.serverLevel(), payload.pos(), musicBox, payload.track(), source, player);
     }
 
     public static void stopTrack(StopRequestPayload payload, IPayloadContext context) {
@@ -54,7 +64,16 @@ public final class ServerPayloadHandlers {
     public static void queueRequest(QueueRequestPayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer player) || !canControl(player, payload.pos())) return;
         if (!(player.level().getBlockEntity(payload.pos()) instanceof MusicBoxBlockEntity musicBox)) return;
-        boolean changed = switch (payload.operation()) {
+        boolean changed;
+        if (payload.operation() == QueueRequestPayload.Operation.ADD) {
+            try {
+                selectSource(payload.track(), player);
+            } catch (IllegalArgumentException error) {
+                rejectSource(player, error);
+                return;
+            }
+        }
+        changed = switch (payload.operation()) {
             case ADD -> musicBox.enqueue(payload.track(), MusicBoxConfig.MAX_QUEUE_SIZE.getAsInt());
             case REMOVE -> musicBox.removeQueued(payload.index());
             case CLEAR -> { musicBox.clearQueue(); yield true; }
@@ -70,16 +89,25 @@ public final class ServerPayloadHandlers {
             sendNearby(level, pos, new StopTrackPayload(pos));
         } else {
             musicBox.stop();
-            resolveAndStart(level, pos, musicBox, next, null);
+            try {
+                ResolverSourceConfig source = ResolverSourceSelector.select(
+                        ResolverSourceRegistry.configuredSources(), next, 4);
+                resolveAndStart(level, pos, musicBox, next, source, null);
+            } catch (IllegalArgumentException error) {
+                MusicBoxMod.LOGGER.warn("Queued track rejected: {}", error.getMessage());
+                advance(level, pos, musicBox);
+                return;
+            }
         }
         sendNearby(level, pos, new QueueStatePayload(pos, musicBox.queue()));
     }
 
     private static void resolveAndStart(ServerLevel level, net.minecraft.core.BlockPos pos,
-                                        MusicBoxBlockEntity musicBox, TrackRef track, ServerPlayer requester) {
+                                        MusicBoxBlockEntity musicBox, TrackRef track, ResolverSourceConfig source,
+                                        ServerPlayer requester) {
         long generation = musicBox.beginResolution();
         try {
-            new ServerPlaybackResolver().resolve(track).whenComplete((resolved, error) -> level.getServer().execute(() -> {
+            new ServerPlaybackResolver(source).resolve(track).whenComplete((resolved, error) -> level.getServer().execute(() -> {
                 if (level.getBlockEntity(pos) != musicBox || !musicBox.isCurrentResolution(generation)) return;
                 if (error != null) {
                     musicBox.stop();
@@ -101,6 +129,20 @@ public final class ServerPayloadHandlers {
                     Component.translatable("message.musicbox.resolve_failed", rootMessage(error)), false);
             sendNearby(level, pos, new StopTrackPayload(pos));
         }
+    }
+
+    private static ResolverSourceConfig selectSource(TrackRef track, ServerPlayer player) {
+        int permission = 0;
+        for (int level = 4; level >= 1; level--) {
+            if (player.hasPermissions(level)) { permission = level; break; }
+        }
+        return ResolverSourceSelector.select(ResolverSourceRegistry.configuredSources(), track, permission);
+    }
+
+    private static void rejectSource(ServerPlayer player, IllegalArgumentException error) {
+        MusicBoxMod.LOGGER.warn("Rejected resolver source request from {}: {}", player.getGameProfile().getName(),
+                error.getMessage());
+        player.displayClientMessage(Component.translatable("message.musicbox.source_rejected"), true);
     }
 
     private static String rootMessage(Throwable error) {

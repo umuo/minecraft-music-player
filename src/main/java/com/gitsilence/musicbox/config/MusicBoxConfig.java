@@ -17,6 +17,7 @@ public final class MusicBoxConfig {
     public static final ModConfigSpec.ConfigValue<String> DEFAULT_QUALITY;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> ALLOWED_AUDIO_HOSTS;
     public static final ModConfigSpec.IntValue HTTP_TIMEOUT_SECONDS;
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> RESOLVER_SOURCES;
 
     static {
         ModConfigSpec.Builder common = new ModConfigSpec.Builder();
@@ -39,6 +40,9 @@ public final class MusicBoxConfig {
                 .defineInRange(ResolverConfigKeys.HTTP_TIMEOUT_SECONDS, 15, 3, 60);
         REQUIRE_HTTPS = common.comment("Require HTTPS for resolver and audio URLs (localhost excepted).")
                 .define(ResolverConfigKeys.REQUIRE_HTTPS, true);
+        RESOLVER_SOURCES = common.comment(
+                "Named resolver sources as JSON objects. Secrets remain server-side. See README for the schema.")
+                .defineListAllowEmpty(ResolverConfigKeys.SOURCES, List.of(), () -> "", value -> value instanceof String);
         common.pop();
         SERVER_SPEC = common.build();
 

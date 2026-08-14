@@ -15,6 +15,10 @@ npm start
 
 The default listener is `127.0.0.1:9863`. A GitHub raw URL can be used directly; the script does not need to be rewritten as an HTTP API. Startup logs the source name, declared version, SHA-256 hash, and whether a cached copy was used.
 
+To run multiple sources, start one Bridge process per trusted script with a distinct `BRIDGE_PORT` (for example
+9863 and 9864), token, and cache directory, then add each loopback endpoint to the mod's server-only named-source
+configuration. Keep every listener on `127.0.0.1`; Minecraft clients must never connect to a Bridge directly.
+
 Configure `world/serverconfig/musicbox-server.toml`:
 
 ```toml

@@ -13,9 +13,10 @@ public record TrackRef(
         String hash320,
         String hashFlac,
         String hashHires,
-        String quality
+        String quality,
+        String sourceId
 ) {
-    public static final TrackRef EMPTY = new TrackRef("", "", "", "", "", 0, "", "", "", "", "128k");
+    public static final TrackRef EMPTY = new TrackRef("", "", "", "", "", 0, "", "", "", "", "128k", "default");
     private static final Set<String> SOURCES = Set.of("kw", "kg", "tx", "wy", "mg", "local");
     private static final Set<String> QUALITIES = Set.of("128k", "320k", "flac", "flac24bit");
 
@@ -30,7 +31,16 @@ public record TrackRef(
         hashFlac = trim(hashFlac, 128);
         hashHires = trim(hashHires, 128);
         quality = trim(quality, 16);
+        sourceId = trim(sourceId, 32);
+        if (sourceId.isBlank()) sourceId = "default";
         durationSeconds = Math.max(0, Math.min(durationSeconds, 86_400));
+    }
+
+    /** Binary/source compatibility helper for tracks created before named resolvers existed. */
+    public TrackRef(String source, String trackId, String title, String artist, String album, int durationSeconds,
+                    String hash128, String hash320, String hashFlac, String hashHires, String quality) {
+        this(source, trackId, title, artist, album, durationSeconds, hash128, hash320, hashFlac, hashHires,
+                quality, "default");
     }
 
     public boolean isValid() {

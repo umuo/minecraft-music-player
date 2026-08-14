@@ -127,6 +127,7 @@ public final class MusicBoxBlockEntity extends BlockEntity {
         trackTag.putString("HashFlac", track.hashFlac());
         trackTag.putString("HashHires", track.hashHires());
         trackTag.putString("Quality", track.quality());
+        trackTag.putString("ResolverSource", track.sourceId());
         return trackTag;
     }
 
@@ -142,7 +143,8 @@ public final class MusicBoxBlockEntity extends BlockEntity {
                 trackTag.getString("Hash320"),
                 trackTag.getString("HashFlac"),
                 trackTag.getString("HashHires"),
-                trackTag.getString("Quality")
+                trackTag.getString("Quality"),
+                trackTag.contains("ResolverSource") ? trackTag.getString("ResolverSource") : "default"
         );
     }
 }

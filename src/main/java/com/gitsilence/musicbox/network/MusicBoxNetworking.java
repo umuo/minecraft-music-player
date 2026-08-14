@@ -18,7 +18,7 @@ public final class MusicBoxNetworking {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar("3");
+        PayloadRegistrar registrar = event.registrar("4");
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             registerClientboundHandlers(registrar);

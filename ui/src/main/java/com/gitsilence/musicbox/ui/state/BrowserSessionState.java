@@ -16,6 +16,7 @@ public final class BrowserSessionState {
     private MusicPlatform platform = MusicPlatform.KUGOU;
     private boolean playlistMode;
     private String quality;
+    private String resolverSourceId;
 
     public BrowserSessionState() {
         for (MusicPlatform value : MusicPlatform.values()) {
@@ -38,6 +39,10 @@ public final class BrowserSessionState {
     }
 
     public void setQuality(String quality) { this.quality = quality; }
+
+    public String resolverSourceId() { return resolverSourceId; }
+
+    public void resolverSourceId(String resolverSourceId) { this.resolverSourceId = resolverSourceId; }
 
     public String query(MusicPlatform platform, boolean playlistMode) {
         return state(platform, playlistMode).query;

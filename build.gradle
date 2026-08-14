@@ -150,6 +150,10 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 }
 
+// Payload round-trip tests need the same mapped Minecraft/NeoForge API used by main.
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
+
 tasks.register('queueUnitTest', JavaExec) {
     group = 'verification'
     description = 'Runs dependency-free queue/track validation checks.'
@@ -192,8 +196,16 @@ tasks.register('serverResolverUnitTest', JavaExec) {
     mainClass = 'com.gitsilence.musicbox.server.resolver.ServerResolverTest'
     dependsOn testClasses
 }
+tasks.register('resolverSourcesUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates named resolver parsing, redaction, routing, and network round trips.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.network.payload.ResolverSourcesTest'
+    dependsOn testClasses
+}
 tasks.named('check').configure {
-    dependsOn queueUnitTest, lyricsUnitTest, playbackProgressUnitTest, spatialAudioUnitTest, safeLxUnitTest, serverResolverUnitTest
+    dependsOn queueUnitTest, lyricsUnitTest, playbackProgressUnitTest, spatialAudioUnitTest, safeLxUnitTest,
+            serverResolverUnitTest, resolverSourcesUnitTest
 }
 tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false

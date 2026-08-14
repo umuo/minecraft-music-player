@@ -24,11 +24,12 @@ public final class ClientPayloadHandlers {
     public static void openScreen(OpenMusicBoxPayload payload, IPayloadContext context) {
         Minecraft.getInstance().setScreen(new MusicBrowserScreen(
                 MusicBoxConfig.DEFAULT_QUALITY.get(),
-                (track, quality) -> PacketDistributor.sendToServer(new RequestTrackPayload(
-                        payload.pos(), toTrackRef(track, quality)
+                payload.sources(),
+                (track, quality, sourceId) -> PacketDistributor.sendToServer(new RequestTrackPayload(
+                        payload.pos(), toTrackRef(track, quality, sourceId)
                 )),
-                (track, quality) -> PacketDistributor.sendToServer(new QueueRequestPayload(payload.pos(),
-                        QueueRequestPayload.Operation.ADD, 0, toTrackRef(track, quality))),
+                (track, quality, sourceId) -> PacketDistributor.sendToServer(new QueueRequestPayload(payload.pos(),
+                        QueueRequestPayload.Operation.ADD, 0, toTrackRef(track, quality, sourceId))),
                 (operation, index) -> PacketDistributor.sendToServer(new QueueRequestPayload(payload.pos(),
                         QueueRequestPayload.Operation.valueOf(operation.name()), index, TrackRef.EMPTY)),
                 () -> PacketDistributor.sendToServer(new StopRequestPayload(payload.pos()))
@@ -52,7 +53,7 @@ public final class ClientPayloadHandlers {
         }
     }
 
-    private static TrackRef toTrackRef(CatalogTrack track, String quality) {
+    private static TrackRef toTrackRef(CatalogTrack track, String quality, String sourceId) {
         return new TrackRef(
                 track.platform().source(),
                 track.id(),
@@ -64,7 +65,8 @@ public final class ClientPayloadHandlers {
                 track.hash320(),
                 track.hashFlac(),
                 track.hashHires(),
-                quality
+                quality,
+                sourceId
         );
     }
 }
