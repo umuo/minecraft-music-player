@@ -16,6 +16,7 @@ import com.gitsilence.musicbox.server.resolver.ServerPlaybackResolver;
 import com.gitsilence.musicbox.server.resolver.ResolverSourceConfig;
 import com.gitsilence.musicbox.server.resolver.ResolverSourceRegistry;
 import com.gitsilence.musicbox.server.resolver.ResolverSourceSelector;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -57,10 +58,14 @@ public final class ServerPayloadHandlers {
         if (!(context.player() instanceof ServerPlayer player) || !canControl(player, payload.pos())) {
             return;
         }
-        if (player.level().getBlockEntity(payload.pos()) instanceof MusicBoxBlockEntity musicBox) {
+        stop(player.serverLevel(), payload.pos());
+    }
+
+    public static void stop(ServerLevel level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof MusicBoxBlockEntity musicBox) {
             musicBox.stop();
-            sendNearby(player.serverLevel(), payload.pos(), new StopTrackPayload(payload.pos()));
         }
+        sendNearby(level, pos, new StopTrackPayload(pos));
     }
 
     public static void queueRequest(QueueRequestPayload payload, IPayloadContext context) {
@@ -149,6 +154,7 @@ public final class ServerPayloadHandlers {
                                         MusicBoxBlockEntity musicBox, TrackRef track, ResolverSourceConfig source,
                                         ServerPlayer requester) {
         long generation = musicBox.beginResolution();
+        MusicBoxMod.LOGGER.info("Resolving track '{}' (source={}, id={}) via resolver '{}'...", track.title(), track.source(), track.trackId(), source.id());
         try {
             new ServerPlaybackResolver(source).resolve(track).whenComplete((resolved, error) -> level.getServer().execute(() -> {
                 if (level.getBlockEntity(pos) != musicBox || !musicBox.isCurrentResolution(generation)) return;
@@ -160,6 +166,7 @@ public final class ServerPayloadHandlers {
                     sendNearby(level, pos, new StopTrackPayload(pos));
                     return;
                 }
+                MusicBoxMod.LOGGER.info("Server resolved track '{}' -> Audio URL: {}", track.title(), resolved.audioUrl());
                 long start = level.getGameTime() + MusicBoxConfig.START_DELAY_TICKS.getAsInt();
                 musicBox.start(track, start);
                 sendNearby(level, pos, new StartTrackPayload(pos, track, start,

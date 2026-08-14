@@ -1,4 +1,31 @@
+import fs from 'node:fs'
 import path from 'node:path'
+
+function loadEnvFileIfPresent(cwd, targetEnv) {
+  const envPath = path.resolve(cwd, '.env')
+  if (!fs.existsSync(envPath)) return
+  if (targetEnv === process.env && typeof process.loadEnvFile === 'function') {
+    try { process.loadEnvFile(envPath); return } catch {}
+  }
+  try {
+    const content = fs.readFileSync(envPath, 'utf8')
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const idx = trimmed.indexOf('=')
+      if (idx !== -1) {
+        const key = trimmed.slice(0, idx).trim()
+        let val = trimmed.slice(idx + 1).trim()
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1)
+        }
+        if (key && !(key in targetEnv)) {
+          targetEnv[key] = val
+        }
+      }
+    }
+  } catch {}
+}
 
 const integer = (env, name, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) => {
   const value = env[name] == null || env[name] === '' ? fallback : Number(env[name])
@@ -39,6 +66,7 @@ const sourceSlot = (entry, baseCacheDir, seen) => {
 }
 
 export function loadConfig(env = process.env, cwd = process.cwd()) {
+  loadEnvFileIfPresent(cwd, env)
   const cacheDir = path.resolve(cwd, env.CACHE_DIR || '.cache')
   const seen = new Set()
   const sources = parseSources(env).map(entry => sourceSlot(entry, cacheDir, seen))

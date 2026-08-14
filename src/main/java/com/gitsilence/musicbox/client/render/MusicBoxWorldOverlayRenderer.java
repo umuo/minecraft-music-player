@@ -25,7 +25,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 
-@EventBusSubscriber(modid = MusicBoxMod.MOD_ID, value = Dist.CLIENT)
+// Handled natively by MusicBoxBlockEntityRenderer
 public final class MusicBoxWorldOverlayRenderer {
     private static final double MAX_DISTANCE = 24.0;
     private static final int MAX_TEXT_WIDTH = 150;
@@ -40,23 +40,16 @@ public final class MusicBoxWorldOverlayRenderer {
         ClientPlaybackManager.PlaybackSnapshot state = ClientPlaybackManager.snapshot();
         if (state == null || minecraft.level == null || minecraft.player == null || minecraft.options.hideGui) return;
         BlockPos pos = state.pos();
-        if (!(minecraft.level.getBlockEntity(pos) instanceof MusicBoxBlockEntity)) return;
 
         Camera camera = event.getCamera();
-        Vec3 anchor = Vec3.atCenterOf(pos).add(0.0, 1.15, 0.0);
+        Vec3 anchor = Vec3.atCenterOf(pos).add(0.0, 1.25, 0.0);
         double distance = camera.getPosition().distanceTo(anchor);
-        double limit = Math.min(MAX_DISTANCE, Math.max(1, state.broadcastRadius()));
-        if (distance > limit || !event.getFrustum().isVisible(new net.minecraft.world.phys.AABB(pos).inflate(0.25).move(0, 1.15, 0))) return;
-        if (!hasLineOfSight(minecraft, camera.getPosition(), anchor, pos)) return;
+        double limit = Math.max(MAX_DISTANCE, (double) state.broadcastRadius());
+        if (distance > limit) return;
+        if (!event.getFrustum().isVisible(new net.minecraft.world.phys.AABB(pos).inflate(2.5))) return;
 
-        int alpha = Mth.clamp((int) (255.0 * Math.min(1.0, (limit - distance) / 5.0)), 48, 255);
+        int alpha = Mth.clamp((int) (255.0 * Math.min(1.0, (limit - distance) / 3.0)), 64, 255);
         renderOverlay(event.getPoseStack(), camera, minecraft, state, anchor, alpha);
-    }
-
-    private static boolean hasLineOfSight(Minecraft minecraft, Vec3 from, Vec3 to, BlockPos source) {
-        BlockHitResult hit = minecraft.level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE, minecraft.player));
-        return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(source);
     }
 
     private static void renderOverlay(PoseStack pose, Camera camera, Minecraft minecraft,
@@ -88,7 +81,7 @@ public final class MusicBoxWorldOverlayRenderer {
             int background = ((alpha * 110 / 255) << 24);
             float x = -font.width(clipped) / 2.0F;
             font.drawInBatch(clipped, x, y, color, false, matrix, buffers,
-                    Font.DisplayMode.NORMAL, background, 0x00F000F0);
+                    Font.DisplayMode.POLYGON_OFFSET, background, 0x00F000F0);
             y += index == 1 ? 13 : 11;
         }
         buffers.endBatch();

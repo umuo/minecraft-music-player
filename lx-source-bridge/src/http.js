@@ -1,4 +1,4 @@
-export const hostAllowed = (host, allowlist) => !allowlist.length || allowlist.some(item => host === item || host.endsWith(`.${item}`))
+export const hostAllowed = (host, allowlist) => !allowlist.length || allowlist.includes('*') || allowlist.some(item => host === item || host.endsWith(`.${item}`))
 
 export async function fetchLimited(url, options = {}, policy) {
   let current = new URL(url)

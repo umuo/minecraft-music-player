@@ -52,6 +52,10 @@ public final class MusicBoxMod {
 
         container.registerConfig(ModConfig.Type.SERVER, MusicBoxConfig.SERVER_SPEC);
         container.registerConfig(ModConfig.Type.CLIENT, MusicBoxConfig.CLIENT_SPEC);
+
+        if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+            modEventBus.addListener(com.gitsilence.musicbox.client.MusicBoxClientEvents::registerRenderers);
+        }
     }
 
     private void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {

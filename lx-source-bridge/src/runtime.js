@@ -83,11 +83,21 @@ export class LxRuntime {
     if (action === 'musicUrl' && info?.type && declared.qualitys.length && !declared.qualitys.includes(info.type))
       throw Object.assign(new Error(`quality is not supported: ${info.type}`), { status: 400 })
     let timer
-    const result = await Promise.race([
-      Promise.resolve().then(() => this.handler({ source, action, info })),
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('source request timed out')), this.config.requestTimeoutMs) }),
-    ]).finally(() => clearTimeout(timer))
-    if (action === 'musicUrl') return { url: safeUrl(typeof result === 'string' ? result : result?.url, 'audio', this.config) }
+    let result
+    try {
+      result = await Promise.race([
+        Promise.resolve().then(() => this.handler({ source, action, info })),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('source request timed out')), this.config.requestTimeoutMs) }),
+      ]).finally(() => clearTimeout(timer))
+    } catch (error) {
+      this.log.error(`[Bridge] [${source}] Failed to execute action ${action}: ${error.message}`)
+      throw error
+    }
+    if (action === 'musicUrl') {
+      const audioUrl = safeUrl(typeof result === 'string' ? result : result?.url, 'audio', this.config)
+      this.log.info(`[Bridge] [${source}] Resolved audio URL: ${audioUrl}`)
+      return { url: audioUrl }
+    }
     if (action === 'pic') return { url: safeUrl(typeof result === 'string' ? result : result?.url || result?.pic, 'picture', this.config) }
     if (action === 'lyric') {
       const lyric = typeof result === 'string' ? result : result?.lyric

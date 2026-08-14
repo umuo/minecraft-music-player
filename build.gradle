@@ -127,6 +127,8 @@ dependencies {
     // Small, pure-Java MP3 decoder used for HTTP audio streams returned by a resolver API.
     implementation 'javazoom:jlayer:1.0.1'
     jarJar 'javazoom:jlayer:[1.0.1,1.0.2)'
+    additionalRuntimeClasspath 'javazoom:jlayer:1.0.1'
+    localRuntime 'javazoom:jlayer:1.0.1'
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

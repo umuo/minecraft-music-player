@@ -17,6 +17,7 @@ import com.gitsilence.musicbox.playback.TrackRef;
 import com.gitsilence.musicbox.ui.catalog.CatalogTrack;
 import com.gitsilence.musicbox.ui.screen.MusicBrowserScreen;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
@@ -46,11 +47,27 @@ public final class ClientPayloadHandlers {
     public static void startTrack(StartTrackPayload payload, IPayloadContext context) {
         ClientPlaybackManager.start(payload);
         ClientLyricsManager.start(payload);
+        Minecraft minecraft = Minecraft.getInstance();
+        minecraft.execute(() -> {
+            if (minecraft.level != null && minecraft.level.getBlockEntity(payload.pos()) instanceof com.gitsilence.musicbox.block.entity.MusicBoxBlockEntity be) {
+                be.start(payload.track(), payload.startGameTime());
+            }
+            String title = payload.track().title();
+            String artist = payload.track().artist();
+            String text = "♪ 正在播放: " + title + (artist.isBlank() ? "" : " - " + artist);
+            minecraft.gui.setOverlayMessage(Component.literal(text), false);
+        });
     }
 
     public static void stopTrack(StopTrackPayload payload, IPayloadContext context) {
         ClientPlaybackManager.stop(payload.pos());
         ClientLyricsManager.stop(payload.pos());
+        Minecraft minecraft = Minecraft.getInstance();
+        minecraft.execute(() -> {
+            if (minecraft.level != null && minecraft.level.getBlockEntity(payload.pos()) instanceof com.gitsilence.musicbox.block.entity.MusicBoxBlockEntity be) {
+                be.stop();
+            }
+        });
     }
 
     public static void queueState(QueueStatePayload payload, IPayloadContext context) {

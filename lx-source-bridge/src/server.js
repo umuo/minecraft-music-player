@@ -11,8 +11,8 @@ const json = (res, status, body, maxBytes) => {
 }
 const authorized = (req, token) => {
   if (!token) return true
-  const actual = req.headers.authorization || ''
-  const expected = `Bearer ${token}`
+  const actual = (req.headers.authorization || '').trim()
+  const expected = `Bearer ${String(token).trim()}`
   return actual.length === expected.length && crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected))
 }
 const errorStatus = error => error.status || 502

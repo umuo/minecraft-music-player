@@ -30,6 +30,9 @@ public final class MusicBoxBlockEntity extends BlockEntity {
         this.currentTrack = track;
         this.startGameTime = startGameTime;
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     public void stop() {
@@ -37,6 +40,21 @@ public final class MusicBoxBlockEntity extends BlockEntity {
         this.currentTrack = null;
         this.startGameTime = 0;
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    @Override
+    public net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        CompoundTag tag = new CompoundTag();
+        saveAdditional(tag, registries);
+        return tag;
     }
 
     public long beginResolution() { return ++requestGeneration; }

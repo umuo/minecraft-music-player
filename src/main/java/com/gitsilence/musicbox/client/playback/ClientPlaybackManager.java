@@ -75,12 +75,34 @@ public final class ClientPlaybackManager {
                 return;
             }
             HttpResponse<InputStream> response = openAudio(uri);
-            try (InputStream stream = response.body()) {
+            try (java.io.BufferedInputStream stream = new java.io.BufferedInputStream(response.body(), 8192)) {
+                stream.mark(256);
+                byte[] header = new byte[256];
+                int read = stream.read(header);
+                stream.reset();
+                
+                if (read > 0) {
+                    if (header[0] == '{' || header[0] == '<') {
+                        String text = new String(header, 0, read, java.nio.charset.StandardCharsets.UTF_8).trim();
+                        throw new IllegalStateException("CDN returned error payload: " + text.substring(0, Math.min(text.length(), 100)));
+                    }
+                    if (read >= 4) {
+                        String magic = new String(header, 0, 4, java.nio.charset.StandardCharsets.US_ASCII);
+                        if (magic.startsWith("fLaC")) {
+                            throw new IllegalStateException("Received FLAC audio. Currently only MP3 is supported by the client decoder.");
+                        }
+                        if (magic.substring(4).startsWith("ftyp") || magic.contains("ftypM4A") || magic.contains("ftypmp42")) {
+                            throw new IllegalStateException("Received M4A/MP4 audio. Currently only MP3 is supported by the client decoder.");
+                        }
+                    }
+                }
+
                 PositionalMp3Player nextPlayer = new PositionalMp3Player(stream);
                 if (GENERATION.get() != generation) { nextPlayer.close(); return; }
                 waitUntil(startAtNanos, generation);
                 if (GENERATION.get() != generation) { nextPlayer.close(); return; }
                 player = nextPlayer;
+                MusicBoxMod.LOGGER.info("Starting Java Sound playback for '{}' at {}", payload.track().title(), payload.pos());
                 nextPlayer.play(Vec3.atCenterOf(payload.pos()), payload.broadcastRadius());
             }
         } catch (Exception error) {
@@ -103,17 +125,15 @@ public final class ClientPlaybackManager {
     }
 
     private static HttpResponse<InputStream> openAudio(URI uri) throws Exception {
-        HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER)
+        HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.ALWAYS)
                 .connectTimeout(Duration.ofSeconds(60)).build();
         HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(60))
-                .header("Accept", "audio/mpeg,audio/*;q=0.9,*/*;q=0.1").GET().build();
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Accept", "*/*")
+                .GET().build();
         HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             response.body().close(); throw new IllegalStateException("Audio CDN returned HTTP " + response.statusCode());
-        }
-        String type = response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
-        if (!type.isEmpty() && !type.startsWith("audio/") && !type.startsWith("application/octet-stream")) {
-            response.body().close(); throw new IllegalStateException("Audio CDN returned unsupported Content-Type");
         }
         return response;
     }
@@ -151,14 +171,20 @@ public final class ClientPlaybackManager {
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
-        Minecraft minecraft = Minecraft.getInstance();
-        BlockPos activePos = sourcePos;
-        if (activePos == null || minecraft.player == null) {
-            return;
-        }
-        double radiusSquared = Math.pow(activeRadius, 2);
-        if (minecraft.player.distanceToSqr(Vec3.atCenterOf(activePos)) > radiusSquared) {
-            stopCurrent();
+        if (player != null && sourcePos != null) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null && mc.player != null) {
+                if (mc.level.isLoaded(sourcePos)) {
+                    if (!(mc.level.getBlockEntity(sourcePos) instanceof com.gitsilence.musicbox.block.entity.MusicBoxBlockEntity)) {
+                        stopCurrent();
+                        return;
+                    }
+                }
+                double distSq = mc.player.distanceToSqr(Vec3.atCenterOf(sourcePos));
+                double maxDist = activeRadius;
+                float volume = distSq >= maxDist * maxDist ? 0f : (float) (1.0 - Math.sqrt(distSq) / maxDist);
+                player.setVolume(volume);
+            }
         }
     }
 }

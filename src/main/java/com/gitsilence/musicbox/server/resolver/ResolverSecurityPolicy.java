@@ -17,9 +17,11 @@ public final class ResolverSecurityPolicy {
     public static URI validateAudio(String value, List<? extends String> allowedHosts, boolean requireHttps) {
         URI uri = URI.create(value);
         validateHttp(uri, "audio", requireHttps);
+        if (allowedHosts == null || allowedHosts.isEmpty()) return uri;
         String host = uri.getHost().toLowerCase(Locale.ROOT);
         for (String entry : allowedHosts) {
             String allowed = entry.strip().toLowerCase(Locale.ROOT);
+            if (allowed.equals("*")) return uri;
             if (!allowed.isEmpty() && (host.equals(allowed) || host.endsWith("." + allowed))) return uri;
         }
         throw new IllegalArgumentException("Resolved audio host is not allowed: " + host);
