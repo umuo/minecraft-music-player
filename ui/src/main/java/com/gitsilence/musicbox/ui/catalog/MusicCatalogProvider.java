@@ -11,6 +11,14 @@ public interface MusicCatalogProvider {
 
     CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist);
 
+    default CompletableFuture<PageResult<CatalogPlaylist>> hotPlaylists(int page, int pageSize) {
+        return playlists("", page, pageSize);
+    }
+
+    default CompletableFuture<PageResult<CatalogPlaylist>> rankings(int page, int pageSize) {
+        return playlists("排行榜", page, pageSize);
+    }
+
     /** Parses only an allow-listed public URL or a platform playlist id. No network request is made. */
     PlaylistImportRef normalizePlaylist(String urlOrId);
 

@@ -29,6 +29,6 @@ public final class MusicCatalog {
     }
 
     private static void register(Map<MusicPlatform, MusicCatalogProvider> providers, MusicCatalogProvider provider) {
-        providers.put(provider.platform(), provider);
+        providers.put(provider.platform(), new CachingCatalogProvider(provider));
     }
 }

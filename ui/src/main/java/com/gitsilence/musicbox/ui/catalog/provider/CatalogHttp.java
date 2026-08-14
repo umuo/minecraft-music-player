@@ -40,6 +40,30 @@ final class CatalogHttp {
         return getText(uri, Map.of());
     }
 
+    CompletableFuture<JsonElement> postJson(String url, String jsonBody, Map<String, String> headers) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                .timeout(TIMEOUT)
+                .header("Accept", "application/json,text/html;q=0.8")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.5")
+                .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 MusicBox/0.2")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8));
+        headers.forEach(builder::header);
+        HttpRequest request = builder.build();
+        return client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
+                .thenApply(response -> {
+                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                        throw new CatalogException("Music platform returned HTTP " + response.statusCode());
+                    }
+                    if (response.body().length > MAX_RESPONSE_BYTES) throw new CatalogException("Music platform response was too large");
+                    try {
+                        return JsonParser.parseString(new String(response.body(), StandardCharsets.UTF_8));
+                    } catch (RuntimeException error) {
+                        throw new CatalogException("Invalid JSON returned by music platform", error);
+                    }
+                });
+    }
+
     CompletableFuture<String> getText(URI uri, Map<String, String> headers) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
                 .timeout(TIMEOUT)

@@ -23,7 +23,30 @@ public final class KuwoCatalogProvider implements MusicCatalogProvider {
         return search(keyword, page, pageSize, "playlist").thenApply(json -> new PageResult<>(
                 parsePlaylists(JsonSupport.array(root(json), "abslist")), page, pageSize, JsonSupport.number(root(json), "TOTAL")));
     }
+    private static final List<CatalogPlaylist> RANKINGS = List.of(
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_93", "飙升榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_16", "热歌榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_145", "会员榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_158", "抖音榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_187", "趋势榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_26", "怀旧榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_104", "华语榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_182", "粤语榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_22", "欧美榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_184", "韩语榜", "酷我音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUWO, "RANKING_183", "日语榜", "酷我音乐", "", 100, 0, "")
+    );
+
+    @Override public CompletableFuture<PageResult<CatalogPlaylist>> rankings(int page, int pageSize) {
+        return CompletableFuture.completedFuture(new PageResult<>(RANKINGS, 1, RANKINGS.size(), RANKINGS.size()));
+    }
+
     @Override public CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist) {
+        if (playlist.id().startsWith("RANKING_")) {
+            String bangid = playlist.id().substring(8);
+            return http.getJson("http://kbangserver.kuwo.cn/ksong.s", CatalogHttp.params("from", "pc", "fmt", "json", "pn", 0, "rn", 100, "type", "bang", "data", "content", "id", bangid, "show_copyright_off", 0, "pcmp4", 1, "isbang", 1))
+                    .thenApply(json -> new PlaylistDetail(playlist, parseTracks(JsonSupport.array(root(json), "musiclist"))));
+        }
         return http.getJson(DETAIL, CatalogHttp.params("op", "getlistinfo", "pid", playlist.id(), "pn", 0, "rn", 1000,
                         "encode", "utf8", "keyset", "pl2012", "identity", "kuwo", "pcmp4", 1))
                 .thenApply(KuwoCatalogProvider::parseDetail);

@@ -37,6 +37,7 @@ public final class ClientPlaybackManager {
     private static volatile BlockPos sourcePos;
     private static volatile int activeRadius;
     private static volatile PlaybackSnapshot snapshot;
+    private static volatile Thread currentPlaybackThread;
 
     public record PlaybackSnapshot(BlockPos pos, TrackRef track, long startGameTime, int broadcastRadius) { }
 
@@ -54,7 +55,15 @@ public final class ClientPlaybackManager {
         long waitMillis = Math.max(0, payload.startGameTime() - currentGameTime) * 50L;
         long startAtNanos = System.nanoTime() + waitMillis * 1_000_000L;
 
-        PLAYBACK_EXECUTOR.execute(() -> playResolved(payload, generation, startAtNanos));
+        PLAYBACK_EXECUTOR.execute(() -> {
+            currentPlaybackThread = Thread.currentThread();
+            try {
+                playResolved(payload, generation, startAtNanos);
+            } finally {
+                currentPlaybackThread = null;
+                Thread.interrupted(); // clear interrupted status
+            }
+        });
     }
 
     public static void stop(BlockPos pos) {
@@ -158,6 +167,10 @@ public final class ClientPlaybackManager {
 
     private static void stopCurrent() {
         GENERATION.incrementAndGet();
+        Thread thread = currentPlaybackThread;
+        if (thread != null) {
+            thread.interrupt();
+        }
         PositionalMp3Player current = player;
         player = null;
         BlockPos stoppedPos = sourcePos;

@@ -85,8 +85,35 @@ public final class KugouCatalogProvider implements MusicCatalogProvider {
                 });
     }
 
+    private static final List<CatalogPlaylist> RANKINGS = List.of(
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_8888", "TOP500", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_6666", "飙升榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_52144", "抖音热歌榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_24971", "DJ热歌榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_23784", "网络红歌榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_31308", "内地榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_33160", "电音榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_31313", "香港地区榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_31310", "欧美榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_31311", "韩国榜", "酷狗音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.KUGOU, "RANKING_31312", "日本榜", "酷狗音乐", "", 100, 0, "")
+    );
+
+    @Override
+    public CompletableFuture<PageResult<CatalogPlaylist>> rankings(int page, int pageSize) {
+        return CompletableFuture.completedFuture(new PageResult<>(RANKINGS, 1, RANKINGS.size(), RANKINGS.size()));
+    }
+
     @Override
     public CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist) {
+        if (playlist.id().startsWith("RANKING_")) {
+            String bangid = playlist.id().substring(8);
+            return http.getJson("http://mobilecdnbj.kugou.com/api/v3/rank/song", CatalogHttp.params("version", 9108, "ranktype", 1, "plat", 0, "pagesize", 100, "area_code", 1, "page", 1, "rankid", bangid, "with_res_tag", 0, "show_portrait_mv", 1))
+                    .thenApply(json -> {
+                        JsonObject data = JsonSupport.object(root(json), "data");
+                        return new PlaylistDetail(playlist, parseRankingTracks(JsonSupport.array(data, "info")));
+                    });
+        }
         URI uri = URI.create("https://m.kugou.com/plist/list/" + playlist.id() + "/?json=true");
         return http.getText(uri).thenApply(html -> parseDetail(playlist, html));
     }
@@ -121,6 +148,45 @@ public final class KugouCatalogProvider implements MusicCatalogProvider {
             for (JsonElement child : JsonSupport.array(element.getAsJsonObject(), "Grp")) {
                 if (child.isJsonObject()) addSearchTrack(tracks, seen, child.getAsJsonObject());
             }
+        }
+        return tracks;
+    }
+
+    private static List<CatalogTrack> parseRankingTracks(JsonArray rawTracks) {
+        List<CatalogTrack> tracks = new ArrayList<>();
+        for (JsonElement element : rawTracks) {
+            if (!element.isJsonObject()) continue;
+            JsonObject item = element.getAsJsonObject();
+            String authorName = "";
+            JsonArray authors = JsonSupport.array(item, "authors");
+            if (authors != null && authors.size() > 0) {
+                StringBuilder sb = new StringBuilder();
+                for (JsonElement a : authors) {
+                    if (a.isJsonObject()) {
+                        if (!sb.isEmpty()) sb.append("、");
+                        sb.append(JsonSupport.string(a.getAsJsonObject(), "author_name"));
+                    }
+                }
+                authorName = sb.toString();
+            }
+            if (authorName.isEmpty()) authorName = first(item, "author_name", "singername");
+            
+            long millis = number(item, "duration", "timelength");
+            if (millis > 10_000) millis /= 1000;
+            
+            tracks.add(new CatalogTrack(
+                    MusicPlatform.KUGOU,
+                    first(item, "audio_id", "album_audio_id", "MixSongID", "ID"),
+                    first(item, "songname", "audio_name", "SongName"),
+                    authorName,
+                    first(item, "remark", "album_name", "AlbumName"),
+                    (int) Math.min(Integer.MAX_VALUE, millis),
+                    nestedCover(item),
+                    first(item, "hash", "FileHash"),
+                    first(item, "320hash", "hash_320"),
+                    first(item, "sqhash", "hash_flac"),
+                    first(item, "high_hash", "hash_high")
+            ));
         }
         return tracks;
     }

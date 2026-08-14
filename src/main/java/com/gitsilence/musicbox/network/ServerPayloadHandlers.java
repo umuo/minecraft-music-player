@@ -137,6 +137,7 @@ public final class ServerPayloadHandlers {
             sendNearby(level, pos, new StopTrackPayload(pos));
         } else {
             musicBox.stop();
+            sendNearby(level, pos, new StopTrackPayload(pos));
             try {
                 ResolverSourceConfig source = ResolverSourceSelector.select(
                         ResolverSourceRegistry.configuredSources(), next, 4);

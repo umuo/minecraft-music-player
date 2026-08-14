@@ -37,7 +37,52 @@ public final class QqCatalogProvider implements MusicCatalogProvider {
                 });
     }
 
+    private static final List<CatalogPlaylist> RANKINGS = List.of(
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_4", "流行指数榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_26", "热歌榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_27", "新歌榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_62", "飙升榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_58", "说唱榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_57", "电音榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_28", "网络歌曲榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_5", "内地榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_3", "欧美榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_59", "香港地区榜", "QQ音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.QQ, "RANKING_16", "韩国榜", "QQ音乐", "", 100, 0, "")
+    );
+
+    @Override public CompletableFuture<PageResult<CatalogPlaylist>> rankings(int page, int pageSize) {
+        return CompletableFuture.completedFuture(new PageResult<>(RANKINGS, 1, RANKINGS.size(), RANKINGS.size()));
+    }
+
     @Override public CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist) {
+        if (playlist.id().startsWith("RANKING_")) {
+            String bangid = playlist.id().substring(8);
+            JsonObject body = new JsonObject();
+            JsonObject toplist = new JsonObject();
+            toplist.addProperty("module", "musicToplist.ToplistInfoServer");
+            toplist.addProperty("method", "GetDetail");
+            JsonObject param = new JsonObject();
+            param.addProperty("topid", Integer.parseInt(bangid));
+            param.addProperty("num", 100);
+            param.addProperty("period", "");
+            toplist.add("param", param);
+            body.add("toplist", toplist);
+            JsonObject comm = new JsonObject();
+            comm.addProperty("uin", 0);
+            comm.addProperty("format", "json");
+            comm.addProperty("ct", 20);
+            comm.addProperty("cv", 1859);
+            body.add("comm", comm);
+
+            return http.postJson("https://u.y.qq.com/cgi-bin/musicu.fcg", body.toString(), HEADERS)
+                    .thenApply(json -> {
+                        JsonObject toplistObj = JsonSupport.object(root(json), "toplist");
+                        JsonObject data = JsonSupport.object(toplistObj, "data");
+                        JsonArray songInfoList = JsonSupport.array(data, "songInfoList");
+                        return new PlaylistDetail(playlist, parseTracks(songInfoList));
+                    });
+        }
         return http.getJson(PLAYLIST_DETAIL, CatalogHttp.params("type", 1, "json", 1, "utf8", 1, "onlysong", 0,
                         "disstid", playlist.id(), "format", "json"), HEADERS)
                 .thenApply(QqCatalogProvider::parseDetail);

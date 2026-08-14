@@ -88,15 +88,34 @@ public final class MusicBrowserScreen extends Screen {
     private int parentScrollOffset;
     private int parentSelectedIndex = -1;
 
+    private static class ViewState {
+        List<CatalogTrack> tracks = List.of();
+        List<CatalogPlaylist> playlists = List.of();
+        PageResult<?> currentPage;
+        CatalogTrack selectedTrack;
+        CatalogPlaylist selectedPlaylist;
+        boolean playlistDetail;
+        int scrollOffset;
+        int selectedVisibleIndex = -1;
+        int page = 1;
+        Component status = Component.translatable("screen.musicbox.status.ready");
+        boolean errorStatus;
+        List<CatalogPlaylist> parentPlaylists = List.of();
+        PageResult<?> parentPage;
+        int parentPageNumber = 1;
+        int parentScrollOffset;
+        int parentSelectedIndex = -1;
+        SharedPlaylist selectedSharedPlaylist;
+    }
+    private final java.util.Map<ViewMode, ViewState> tabStates = new java.util.EnumMap<>(ViewMode.class);
+
     private EditBox searchField;
-    private StyledButton kugouButton;
-    private StyledButton neteaseButton;
-    private StyledButton qqButton;
-    private StyledButton kuwoButton;
-    private StyledButton miguButton;
+    private StyledButton platformButton;
     private StyledButton tracksButton;
     private StyledButton playlistsButton;
     private StyledButton sharedButton;
+    private StyledButton hotButton;
+    private StyledButton rankingsButton;
     private StyledButton importButton;
     private StyledButton deleteButton;
     private StyledButton previousButton;
@@ -110,6 +129,7 @@ public final class MusicBrowserScreen extends Screen {
     private StyledButton skipButton;
     private StyledButton sourceButton;
     private StyledButton searchButton;
+    private StyledButton historyButton;
 
     public MusicBrowserScreen(String initialQuality, List<ResolverSourceInfo> resolverSources,
                               TrackPlayHandler playHandler, TrackPlayHandler enqueueHandler,
@@ -142,32 +162,24 @@ public final class MusicBrowserScreen extends Screen {
         int right = panelRight();
         int navY = PANEL_TOP + HEADER_HEIGHT + 3;
 
-        kugouButton = addStyled(left + 8, navY, 42, 18,
-                Component.translatable(MusicPlatform.KUGOU.translationKey()), ButtonStyle.TAB,
-                () -> switchPlatform(MusicPlatform.KUGOU));
-        neteaseButton = addStyled(left + 52, navY, 50, 18,
-                Component.translatable(MusicPlatform.NETEASE.translationKey()), ButtonStyle.TAB,
-                () -> switchPlatform(MusicPlatform.NETEASE));
-        qqButton = addStyled(left + 104, navY, 50, 18,
-                Component.translatable(MusicPlatform.QQ.translationKey()), ButtonStyle.TAB,
-                () -> switchPlatform(MusicPlatform.QQ));
-        kuwoButton = addStyled(left + 156, navY, 42, 18,
-                Component.translatable(MusicPlatform.KUWO.translationKey()), ButtonStyle.TAB,
-                () -> switchPlatform(MusicPlatform.KUWO));
-        miguButton = addStyled(left + 200, navY, 42, 18,
-                Component.translatable(MusicPlatform.MIGU.translationKey()), ButtonStyle.TAB,
-                () -> switchPlatform(MusicPlatform.MIGU));
-        sourceButton = addStyled(left + 244, navY, 48, 18, sourceLabel(), ButtonStyle.NORMAL,
+        platformButton = addStyled(left + 8, navY, 60, 18, platformLabel(), ButtonStyle.NORMAL, this::cyclePlatform);
+        sourceButton = addStyled(left + 72, navY, 48, 18, sourceLabel(), ButtonStyle.NORMAL,
                 this::cycleResolverSource);
-        tracksButton = addStyled(right - 164, navY, 48, 18,
+        tracksButton = addStyled(right - 220, navY, 42, 18,
                 Component.translatable("screen.musicbox.tab.tracks"), ButtonStyle.TAB,
                 () -> switchMode(ViewMode.TRACKS));
-        playlistsButton = addStyled(right - 114, navY, 54, 18,
+        playlistsButton = addStyled(right - 176, navY, 48, 18,
                 Component.translatable("screen.musicbox.tab.playlists"), ButtonStyle.TAB,
                 () -> switchMode(ViewMode.PLAYLISTS));
-        sharedButton = addStyled(right - 58, navY, 50, 18,
+        sharedButton = addStyled(right - 126, navY, 42, 18,
                 Component.translatable("screen.musicbox.tab.shared"), ButtonStyle.TAB,
                 () -> switchMode(ViewMode.SHARED));
+        hotButton = addStyled(right - 82, navY, 36, 18,
+                Component.literal("热门"), ButtonStyle.TAB,
+                () -> switchMode(ViewMode.HOT));
+        rankingsButton = addStyled(right - 44, navY, 36, 18,
+                Component.literal("排行"), ButtonStyle.TAB,
+                () -> switchMode(ViewMode.RANKINGS));
 
         int searchY = navY + 31;
         int searchButtonWidth = 48;
@@ -189,7 +201,7 @@ public final class MusicBrowserScreen extends Screen {
         });
         searchButton = addStyled(right - searchButtonWidth - historyButtonWidth - 6, searchY, searchButtonWidth, 20,
                 Component.translatable("screen.musicbox.search"), ButtonStyle.ACCENT, () -> search(1));
-        addStyled(right - historyButtonWidth, searchY, historyButtonWidth, 20,
+        historyButton = addStyled(right - historyButtonWidth, searchY, historyButtonWidth, 20,
                 Component.translatable("screen.musicbox.history"), ButtonStyle.NORMAL, this::cycleHistory);
         importButton = addStyled(right - searchButtonWidth - historyButtonWidth - 6, searchY, searchButtonWidth, 20,
                 Component.translatable("screen.musicbox.import"), ButtonStyle.ACCENT, this::importSharedPlaylist);
@@ -202,7 +214,7 @@ public final class MusicBrowserScreen extends Screen {
                 Component.translatable("screen.musicbox.next"), ButtonStyle.GHOST,
                 () -> search(page + 1));
         backButton = addStyled(left + 8, bottom, 52, 20, Component.translatable("screen.musicbox.back"),
-                ButtonStyle.NORMAL, this::closePlaylist);
+                ButtonStyle.NORMAL, this::handleBack);
         refreshButton = addStyled(left + 56, bottom, 22, 20,
                 Component.translatable("screen.musicbox.refresh"), ButtonStyle.GHOST,
                 this::refresh);
@@ -219,11 +231,16 @@ public final class MusicBrowserScreen extends Screen {
         playButton = addStyled(right - 104, bottom, 48, 20, Component.translatable("screen.musicbox.play"),
                 ButtonStyle.ACCENT, this::primaryAction);
         addStyled(right - 54, bottom, 46, 20, Component.translatable("screen.musicbox.stop"), ButtonStyle.DANGER,
-                stopHandler);
+                () -> {
+                    stopHandler.run();
+                    status = Component.translatable("screen.musicbox.status.ready");
+                    errorStatus = false;
+                    updateButtons();
+                });
 
         updateButtons();
         if (mode == ViewMode.SHARED) applySharedFilter();
-        else if (mode == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
+        else if (mode == ViewMode.PLAYLISTS || mode == ViewMode.HOT || mode == ViewMode.RANKINGS || !searchField.getValue().isBlank()) search(1);
     }
 
     public void updateQueue(List<String> tracks) {
@@ -288,25 +305,81 @@ public final class MusicBrowserScreen extends Screen {
         rememberCurrentQuery();
         platform = next;
         SESSION.platform(next);
+        tabStates.clear();
         playlistDetail = false;
+        if (platformButton != null) platformButton.setMessage(platformLabel());
         clearResults();
         restoreQuery();
-        if (mode == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
+        if (mode == ViewMode.PLAYLISTS || mode == ViewMode.HOT || mode == ViewMode.RANKINGS || !searchField.getValue().isBlank()) search(1);
         updateButtons();
     }
 
+    private void saveCurrentState() {
+        if (mode == null) return;
+        ViewState state = tabStates.computeIfAbsent(mode, k -> new ViewState());
+        state.tracks = tracks;
+        state.playlists = playlists;
+        state.currentPage = currentPage;
+        state.selectedTrack = selectedTrack;
+        state.selectedPlaylist = selectedPlaylist;
+        state.playlistDetail = playlistDetail;
+        state.scrollOffset = scrollOffset;
+        state.selectedVisibleIndex = selectedVisibleIndex;
+        state.page = page;
+        state.status = status;
+        state.errorStatus = errorStatus;
+        state.parentPlaylists = parentPlaylists;
+        state.parentPage = parentPage;
+        state.parentPageNumber = parentPageNumber;
+        state.parentScrollOffset = parentScrollOffset;
+        state.parentSelectedIndex = parentSelectedIndex;
+        state.selectedSharedPlaylist = selectedSharedPlaylist;
+    }
+
+    private void restoreCurrentState() {
+        ViewState state = tabStates.get(mode);
+        if (state == null) {
+            clearResults();
+            return;
+        }
+        tracks = state.tracks;
+        playlists = state.playlists;
+        currentPage = state.currentPage;
+        selectedTrack = state.selectedTrack;
+        selectedPlaylist = state.selectedPlaylist;
+        playlistDetail = state.playlistDetail;
+        scrollOffset = state.scrollOffset;
+        selectedVisibleIndex = state.selectedVisibleIndex;
+        page = state.page;
+        status = state.status;
+        errorStatus = state.errorStatus;
+        parentPlaylists = state.parentPlaylists;
+        parentPage = state.parentPage;
+        parentPageNumber = state.parentPageNumber;
+        parentScrollOffset = state.parentScrollOffset;
+        parentSelectedIndex = state.parentSelectedIndex;
+        selectedSharedPlaylist = state.selectedSharedPlaylist;
+    }
+
     private void switchMode(ViewMode next) {
-        if (mode == next && !playlistDetail) return;
+        if (mode == next) return;
         rememberCurrentQuery();
+        saveCurrentState();
         mode = next;
         SESSION.playlistMode(next != ViewMode.TRACKS);
-        playlistDetail = false;
-        clearResults();
         restoreQuery();
         searchField.setHint(Component.translatable(next == ViewMode.TRACKS ? "screen.musicbox.search.hint.tracks"
                 : next == ViewMode.PLAYLISTS ? "screen.musicbox.search.hint.playlists" : "screen.musicbox.search.hint.shared"));
-        if (next == ViewMode.SHARED) { sharedRefreshHandler.run(); applySharedFilter(); }
-        else if (next == ViewMode.PLAYLISTS || !searchField.getValue().isBlank()) search(1);
+        
+        ViewState state = tabStates.get(mode);
+        if (state != null) {
+            restoreCurrentState();
+        } else {
+            clearResults();
+            playlistDetail = false;
+            if (next == ViewMode.SHARED) { sharedRefreshHandler.run(); applySharedFilter(); }
+            else if (next == ViewMode.PLAYLISTS || next == ViewMode.HOT || next == ViewMode.RANKINGS || !searchField.getValue().isBlank()) search(1);
+        }
         updateButtons();
     }
 
@@ -328,6 +401,12 @@ public final class MusicBrowserScreen extends Screen {
         if (mode == ViewMode.TRACKS) {
             provider.searchTracks(query, requestedPage, PAGE_SIZE)
                     .whenComplete((result, error) -> onMainThread(generation, () -> applyTracks(result, error)));
+        } else if (mode == ViewMode.HOT) {
+            provider.hotPlaylists(requestedPage, PAGE_SIZE)
+                    .whenComplete((result, error) -> onMainThread(generation, () -> applyPlaylists(result, error)));
+        } else if (mode == ViewMode.RANKINGS) {
+            provider.rankings(requestedPage, PAGE_SIZE)
+                    .whenComplete((result, error) -> onMainThread(generation, () -> applyPlaylists(result, error)));
         } else {
             provider.playlists(query, requestedPage, PAGE_SIZE)
                     .whenComplete((result, error) -> onMainThread(generation, () -> applyPlaylists(result, error)));
@@ -445,6 +524,14 @@ public final class MusicBrowserScreen extends Screen {
         updateButtons();
     }
 
+    private void handleBack() {
+        if (queueView) {
+            toggleQueue();
+        } else {
+            closePlaylist();
+        }
+    }
+
     private void refresh() {
         if (loading) return;
         if (mode == ViewMode.SHARED) { sharedRefreshHandler.run(); applySharedFilter(); return; }
@@ -540,6 +627,17 @@ public final class MusicBrowserScreen extends Screen {
         updateButtons();
     }
 
+    private void cyclePlatform() {
+        if (loading) return;
+        MusicPlatform[] platforms = MusicPlatform.values();
+        int index = (platform.ordinal() + 1) % platforms.length;
+        switchPlatform(platforms[index]);
+    }
+
+    private Component platformLabel() {
+        return Component.literal("平台: ").append(Component.translatable(platform.translationKey()));
+    }
+
     private Component sourceLabel() {
         return resolverSource == null
                 ? Component.translatable("screen.musicbox.source.none")
@@ -571,31 +669,30 @@ public final class MusicBrowserScreen extends Screen {
     }
 
     private void updateButtons() {
-        if (kugouButton == null) return;
-        kugouButton.active = !loading && platform != MusicPlatform.KUGOU;
-        neteaseButton.active = !loading && platform != MusicPlatform.NETEASE;
-        qqButton.active = !loading && platform != MusicPlatform.QQ;
-        kuwoButton.active = !loading && platform != MusicPlatform.KUWO;
-        miguButton.active = !loading && platform != MusicPlatform.MIGU;
+        if (platformButton == null) return;
+        platformButton.active = !loading;
         tracksButton.active = !loading && (mode != ViewMode.TRACKS || playlistDetail);
         playlistsButton.active = !loading && (mode != ViewMode.PLAYLISTS || playlistDetail);
         sharedButton.active = !loading && (mode != ViewMode.SHARED || playlistDetail);
-        kugouButton.selected = platform == MusicPlatform.KUGOU;
-        neteaseButton.selected = platform == MusicPlatform.NETEASE;
-        qqButton.selected = platform == MusicPlatform.QQ;
-        kuwoButton.selected = platform == MusicPlatform.KUWO;
-        miguButton.selected = platform == MusicPlatform.MIGU;
+        hotButton.active = !loading && (mode != ViewMode.HOT || playlistDetail);
+        rankingsButton.active = !loading && (mode != ViewMode.RANKINGS || playlistDetail);
+        
         tracksButton.selected = mode == ViewMode.TRACKS && !playlistDetail;
-        playlistsButton.selected = mode == ViewMode.PLAYLISTS || playlistDetail;
+        playlistsButton.selected = mode == ViewMode.PLAYLISTS && !playlistDetail;
         sharedButton.selected = mode == ViewMode.SHARED;
-        searchButton.visible = mode != ViewMode.SHARED;
+        hotButton.selected = mode == ViewMode.HOT && !playlistDetail;
+        rankingsButton.selected = mode == ViewMode.RANKINGS && !playlistDetail;
+        
+        searchButton.visible = mode == ViewMode.TRACKS || mode == ViewMode.PLAYLISTS;
+        if (historyButton != null) historyButton.visible = mode == ViewMode.TRACKS || mode == ViewMode.PLAYLISTS || mode == ViewMode.SHARED;
+        if (searchField != null) searchField.visible = mode == ViewMode.TRACKS || mode == ViewMode.PLAYLISTS || mode == ViewMode.SHARED;
         importButton.visible = mode == ViewMode.SHARED && !playlistDetail;
         importButton.active = !loading && !searchField.getValue().isBlank();
         previousButton.active = !loading && !playlistDetail && currentPage != null && currentPage.hasPrevious();
         nextButton.active = !loading && !playlistDetail && currentPage != null && currentPage.hasNext();
-        previousButton.visible = !playlistDetail;
-        nextButton.visible = !playlistDetail;
-        backButton.visible = playlistDetail;
+        previousButton.visible = !playlistDetail && !queueView;
+        nextButton.visible = !playlistDetail && !queueView;
+        backButton.visible = playlistDetail || queueView;
         backButton.active = !loading;
         refreshButton.active = !loading && (playlistDetail || currentPage != null || mode == ViewMode.PLAYLISTS
                 || !searchField.getValue().isBlank());
@@ -631,12 +728,14 @@ public final class MusicBrowserScreen extends Screen {
         drawWorkspace(graphics, left, right, panelBottom);
         drawText(graphics, title, left + 10, PANEL_TOP + 8, TEXT);
         String context = Component.translatable(platform.translationKey()).getString() + "  ·  "
-                + Component.translatable(mode == ViewMode.TRACKS ? "screen.musicbox.tab.tracks"
-                        : mode == ViewMode.PLAYLISTS ? "screen.musicbox.tab.playlists" : "screen.musicbox.tab.shared").getString();
+                + (mode == ViewMode.HOT ? "热门" : mode == ViewMode.RANKINGS ? "排行"
+                : Component.translatable(mode == ViewMode.TRACKS ? "screen.musicbox.tab.tracks"
+                        : mode == ViewMode.PLAYLISTS ? "screen.musicbox.tab.playlists" : "screen.musicbox.tab.shared").getString());
         context = font.plainSubstrByWidth(context, Math.max(40, (right - left) / 2 - 18));
         drawText(graphics, Component.literal(context), right - 10 - font.width(context), PANEL_TOP + 8, TEXT_DIM);
 
-        String searchDescription = Component.translatable(mode == ViewMode.TRACKS
+        String searchDescription = mode == ViewMode.HOT ? "当前平台的近期热门歌单推荐" : mode == ViewMode.RANKINGS ? "当前平台的各类音乐排行榜" 
+                : Component.translatable(mode == ViewMode.TRACKS
                 ? "screen.musicbox.search.description.tracks" : mode == ViewMode.PLAYLISTS
                 ? "screen.musicbox.search.description.playlists" : "screen.musicbox.search.description.shared").getString();
         drawText(graphics, Component.literal(font.plainSubstrByWidth(searchDescription, right - left - 20)),
@@ -956,6 +1055,8 @@ public final class MusicBrowserScreen extends Screen {
     private enum ViewMode {
         TRACKS,
         PLAYLISTS,
-        SHARED
+        SHARED,
+        HOT,
+        RANKINGS
     }
 }

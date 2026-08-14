@@ -31,7 +31,33 @@ public final class MiguCatalogProvider implements MusicCatalogProvider {
                     JsonSupport.number(data, "totalCount"));
         });
     }
+    private static final List<CatalogPlaylist> RANKINGS = List.of(
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_27553319", "新歌榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_27186466", "热歌榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_27553408", "原创榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_75959118", "音乐风向榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_76557036", "彩铃分贝榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_76557745", "会员臻爱榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_23189800", "港台榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_23189399", "内地榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_19190036", "欧美榜", "咪咕音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.MIGU, "RANKING_83176390", "国风金曲榜", "咪咕音乐", "", 100, 0, "")
+    );
+
+    @Override public CompletableFuture<PageResult<CatalogPlaylist>> rankings(int page, int pageSize) {
+        return CompletableFuture.completedFuture(new PageResult<>(RANKINGS, 1, RANKINGS.size(), RANKINGS.size()));
+    }
+
     @Override public CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist) {
+        if (playlist.id().startsWith("RANKING_")) {
+            String bangid = playlist.id().substring(8);
+            return http.getJson("https://app.c.nf.migu.cn/MIGUM2.0/v1.0/content/querytoptlistdetails.do", CatalogHttp.params("topListId", bangid, "pageNo", 1, "pageSize", 100), HEADERS)
+                    .thenApply(json -> {
+                        JsonObject data = JsonSupport.object(root(json), "columnInfo");
+                        JsonObject contents = JsonSupport.object(data, "contents");
+                        return new PlaylistDetail(playlist, parseTracks(JsonSupport.array(contents, "songList")));
+                    });
+        }
         var info = http.getJson(DETAIL_INFO, CatalogHttp.params("playlistId", playlist.id()), HEADERS);
         var tracks = http.getJson(DETAIL_TRACKS, CatalogHttp.params("playlistId", playlist.id(), "pageNo", 1,
                 "pageSize", 500), HEADERS);

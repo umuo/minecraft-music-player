@@ -73,6 +73,24 @@ public final class NeteaseCatalogProvider implements MusicCatalogProvider {
                 });
     }
 
+    private static final List<CatalogPlaylist> RANKINGS = List.of(
+            new CatalogPlaylist(MusicPlatform.NETEASE, "19723756", "飙升榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "3778678", "热歌榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "3779629", "新歌榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "2884035", "原创榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "71384707", "古典榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "2250011882", "抖音榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "745956260", "韩语榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "1978921795", "电音榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "2006508653", "电竞榜", "网易云音乐", "", 100, 0, ""),
+            new CatalogPlaylist(MusicPlatform.NETEASE, "21845217", "KTV唛榜", "网易云音乐", "", 100, 0, "")
+    );
+
+    @Override
+    public CompletableFuture<PageResult<CatalogPlaylist>> rankings(int page, int pageSize) {
+        return CompletableFuture.completedFuture(new PageResult<>(RANKINGS, 1, RANKINGS.size(), RANKINGS.size()));
+    }
+
     @Override
     public CompletableFuture<PlaylistDetail> playlistDetail(CatalogPlaylist playlist) {
         return http.getJson(DETAIL_URL, CatalogHttp.params("id", playlist.id(), "n", 1000, "s", 8))
