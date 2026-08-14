@@ -20,15 +20,16 @@ public final class ResolverSourcesTest {
 
     private static void parsesAndRedacts() {
         String json = """
-                {"id":"local-b","displayName":"Bridge B","playbackApiUrl":"http://127.0.0.1:9864/v1/music-url",
+                {"id":"local-b","displayName":"Bridge B","playbackApiUrl":"http://127.0.0.1:9863/sources/local-b/v1/music-url",
                  "token":"top-secret","allowedAudioHosts":["cdn.example"],"requireHttps":true,"timeoutSeconds":12,
                  "platforms":["kg","wy"],"qualities":["128k","320k"],"capabilities":["musicUrl","lyric"]}
                 """;
         ResolverSourceConfig source = ResolverSourceRegistry.parse(List.of(json), null).get("local-b");
         check(source.token().equals("top-secret") && source.timeoutSeconds() == 12, "server config not parsed");
+        check(source.playbackApiUrl().endsWith("/sources/local-b/v1/music-url"), "resolver path was not preserved");
         String publicJson = new Gson().toJson(source.publicInfo());
         check(publicJson.contains("local-b") && publicJson.contains("Bridge B"), "public source is incomplete");
-        check(!publicJson.contains("top-secret") && !publicJson.contains("9864")
+        check(!publicJson.contains("top-secret") && !publicJson.contains("9863") && !publicJson.contains("/sources/")
                 && !publicJson.contains("playbackApiUrl") && !publicJson.contains("allowedAudioHosts"),
                 "public source leaked private resolver configuration");
     }

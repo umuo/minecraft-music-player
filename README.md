@@ -58,13 +58,13 @@ as `defaultQuality`; the bearer token remains solely in the server config and is
 ### Multiple named resolvers
 
 Add one JSON object per entry to the server-only `resolver.sources` list. TOML literal strings avoid escaping.
-Each Bridge can listen on its own loopback port; neither its URL nor token is sent to players:
+A single Bridge can route multiple JS source slots by path; neither its URL nor token is sent to players:
 
 ```toml
 [resolver]
 sources = [
-  '''{"id":"bridge-a","displayName":"Main source","playbackApiUrl":"http://127.0.0.1:9863/v1/music-url","token":"set-only-on-the-server","allowedAudioHosts":["audio-a.example"],"requireHttps":true,"timeoutSeconds":15,"platforms":["kg","wy"],"qualities":["128k","320k","flac"],"capabilities":["musicUrl","lyric"],"enabled":true,"permissionLevel":0}''',
-  '''{"id":"bridge-b","displayName":"Backup source","playbackApiUrl":"http://127.0.0.1:9864/v1/music-url","token":"another-server-secret","allowedAudioHosts":["audio-b.example"],"requireHttps":true,"timeoutSeconds":10,"platforms":["kg"],"qualities":["128k","320k"],"capabilities":["musicUrl"],"enabled":true,"permissionLevel":0}'''
+  '''{"id":"molan","displayName":"Molan","playbackApiUrl":"http://127.0.0.1:9863/sources/molan/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-a.example.invalid"],"requireHttps":true,"timeoutSeconds":15,"platforms":["kg","wy"],"qualities":["128k","320k","flac"],"capabilities":["musicUrl"],"enabled":true,"permissionLevel":0}''',
+  '''{"id":"flower","displayName":"Flower","playbackApiUrl":"http://127.0.0.1:9863/sources/flower/v1/music-url","token":"replace-with-the-shared-bridge-secret","allowedAudioHosts":["audio-b.example.invalid"],"requireHttps":true,"timeoutSeconds":10,"platforms":["kg"],"qualities":["128k","320k"],"capabilities":["musicUrl","lyric"],"enabled":true,"permissionLevel":0}'''
 ]
 ```
 
@@ -132,8 +132,7 @@ reliably prevent filesystem, network, reflection, or credential access once brid
 trust in a separately permissioned local bridge and point the server's `playbackApiUrl` at its loopback endpoint.
 The server sends only the documented `musicUrl` and `lyric` actions and adds the configured bearer token.
 
-The included [LX Source Bridge](lx-source-bridge/README.md) accepts one custom-source JS URL directly, including a
-GitHub raw URL; no manual HTTP API conversion is needed:
+The included [LX Source Bridge](lx-source-bridge/README.md) accepts one or more custom-source JS URLs directly; no manual HTTP API conversion is needed. This legacy single-source form remains supported:
 
 ```bash
 cd lx-source-bridge
@@ -143,6 +142,17 @@ BRIDGE_TOKEN='replace-with-a-long-random-secret' \
 ALLOWED_SOURCE_HOSTS='raw.githubusercontent.com' \
 npm start
 ```
+
+For one process with multiple sources, configure bridge slots and route the named Minecraft resolvers by path:
+
+```bash
+SOURCES_JSON='[{"id":"molan","sourceUrl":"https://sources.example.invalid/molan.js","cacheDir":"molan","enabled":true},{"id":"flower","sourceUrl":"https://sources.example.invalid/flower.js","cacheDir":"flower","enabled":true}]' \
+BRIDGE_TOKEN='replace-with-a-long-random-secret' \
+ALLOWED_SOURCE_HOSTS='sources.example.invalid' \
+npm start
+```
+
+Use `/sources/molan/v1/music-url` and `/sources/flower/v1/music-url` as their server-only `playbackApiUrl` values. The LX JSON `source` field remains the music platform (`kg`, `wy`, `kw`, `tx`, or `mg`); the bridge source ID exists only in the URL path.
 
 Configure the server to use the loopback Bridge:
 
