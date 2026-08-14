@@ -1,13 +1,16 @@
 package com.gitsilence.musicbox.client.playback;
 
 import com.gitsilence.musicbox.MusicBoxMod;
-import com.gitsilence.musicbox.client.api.LxPlaybackResolver;
 import com.gitsilence.musicbox.client.lyrics.ClientLyricsManager;
-import com.gitsilence.musicbox.config.MusicBoxConfig;
 import com.gitsilence.musicbox.network.payload.StartTrackPayload;
+import com.gitsilence.musicbox.server.resolver.ResolverSecurityPolicy;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpResponse;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.time.Duration;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,6 +34,7 @@ public final class ClientPlaybackManager {
 
     private static volatile PositionalMp3Player player;
     private static volatile BlockPos sourcePos;
+    private static volatile int activeRadius;
 
     private ClientPlaybackManager() {
     }
@@ -38,6 +42,7 @@ public final class ClientPlaybackManager {
     public static void start(StartTrackPayload payload) {
         stopCurrent();
         sourcePos = payload.pos();
+        activeRadius = payload.broadcastRadius();
         long generation = GENERATION.incrementAndGet();
         Minecraft minecraft = Minecraft.getInstance();
         long currentGameTime = minecraft.level == null ? payload.startGameTime() : minecraft.level.getGameTime();
@@ -55,19 +60,18 @@ public final class ClientPlaybackManager {
 
     private static void playResolved(StartTrackPayload payload, long generation, long startAtNanos) {
         try {
-            LxPlaybackResolver resolver = new LxPlaybackResolver();
-            URI uri = resolver.resolve(payload.track()).join();
+            URI uri = ResolverSecurityPolicy.validateClientAudio(payload.audioUrl());
             if (GENERATION.get() != generation) {
                 return;
             }
-            HttpResponse<InputStream> response = resolver.openAudio(uri);
+            HttpResponse<InputStream> response = openAudio(uri);
             try (InputStream stream = response.body()) {
                 PositionalMp3Player nextPlayer = new PositionalMp3Player(stream);
                 if (GENERATION.get() != generation) { nextPlayer.close(); return; }
                 waitUntil(startAtNanos, generation);
                 if (GENERATION.get() != generation) { nextPlayer.close(); return; }
                 player = nextPlayer;
-                nextPlayer.play(Vec3.atCenterOf(payload.pos()), MusicBoxConfig.BROADCAST_RADIUS.getAsInt());
+                nextPlayer.play(Vec3.atCenterOf(payload.pos()), payload.broadcastRadius());
             }
         } catch (Exception error) {
             MusicBoxMod.LOGGER.warn("Unable to play {}", payload.track().title(), error);
@@ -86,6 +90,22 @@ public final class ClientPlaybackManager {
                 sourcePos = null;
             }
         }
+    }
+
+    private static HttpResponse<InputStream> openAudio(URI uri) throws Exception {
+        HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(Duration.ofSeconds(15)).build();
+        HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15))
+                .header("Accept", "audio/mpeg,audio/*;q=0.9,*/*;q=0.1").GET().build();
+        HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            response.body().close(); throw new IllegalStateException("Audio CDN returned HTTP " + response.statusCode());
+        }
+        String type = response.headers().firstValue("Content-Type").orElse("").toLowerCase(Locale.ROOT);
+        if (!type.isEmpty() && !type.startsWith("audio/") && !type.startsWith("application/octet-stream")) {
+            response.body().close(); throw new IllegalStateException("Audio CDN returned unsupported Content-Type");
+        }
+        return response;
     }
 
     private static void waitUntil(long startAtNanos, long generation) throws InterruptedException {
@@ -125,7 +145,7 @@ public final class ClientPlaybackManager {
         if (activePos == null || minecraft.player == null) {
             return;
         }
-        double radiusSquared = Math.pow(MusicBoxConfig.BROADCAST_RADIUS.getAsInt(), 2);
+        double radiusSquared = Math.pow(activeRadius, 2);
         if (minecraft.player.distanceToSqr(Vec3.atCenterOf(activePos)) > radiusSquared) {
             stopCurrent();
         }

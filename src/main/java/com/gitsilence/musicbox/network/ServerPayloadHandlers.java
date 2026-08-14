@@ -9,6 +9,8 @@ import com.gitsilence.musicbox.network.payload.StopTrackPayload;
 import com.gitsilence.musicbox.network.payload.QueueRequestPayload;
 import com.gitsilence.musicbox.network.payload.QueueStatePayload;
 import com.gitsilence.musicbox.playback.TrackRef;
+import com.gitsilence.musicbox.MusicBoxMod;
+import com.gitsilence.musicbox.server.resolver.ServerPlaybackResolver;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,10 +36,9 @@ public final class ServerPayloadHandlers {
             return;
         }
 
-        long startGameTime = player.level().getGameTime() + MusicBoxConfig.START_DELAY_TICKS.getAsInt();
-        musicBox.start(payload.track(), startGameTime);
-        StartTrackPayload start = new StartTrackPayload(payload.pos(), payload.track(), startGameTime);
-        sendNearby(player.serverLevel(), payload.pos(), start);
+        musicBox.stop();
+        sendNearby(player.serverLevel(), payload.pos(), new StopTrackPayload(payload.pos()));
+        resolveAndStart(player.serverLevel(), payload.pos(), musicBox, payload.track(), player);
     }
 
     public static void stopTrack(StopRequestPayload payload, IPayloadContext context) {
@@ -68,11 +69,44 @@ public final class ServerPayloadHandlers {
             musicBox.stop();
             sendNearby(level, pos, new StopTrackPayload(pos));
         } else {
-            long start = level.getGameTime() + MusicBoxConfig.START_DELAY_TICKS.getAsInt();
-            musicBox.start(next, start);
-            sendNearby(level, pos, new StartTrackPayload(pos, next, start));
+            musicBox.stop();
+            resolveAndStart(level, pos, musicBox, next, null);
         }
         sendNearby(level, pos, new QueueStatePayload(pos, musicBox.queue()));
+    }
+
+    private static void resolveAndStart(ServerLevel level, net.minecraft.core.BlockPos pos,
+                                        MusicBoxBlockEntity musicBox, TrackRef track, ServerPlayer requester) {
+        long generation = musicBox.beginResolution();
+        try {
+            new ServerPlaybackResolver().resolve(track).whenComplete((resolved, error) -> level.getServer().execute(() -> {
+                if (level.getBlockEntity(pos) != musicBox || !musicBox.isCurrentResolution(generation)) return;
+                if (error != null) {
+                    musicBox.stop();
+                    MusicBoxMod.LOGGER.warn("Server resolver failed for {}", track.title(), error);
+                    if (requester != null && requester.connection != null) requester.displayClientMessage(
+                            Component.translatable("message.musicbox.resolve_failed", rootMessage(error)), false);
+                    sendNearby(level, pos, new StopTrackPayload(pos));
+                    return;
+                }
+                long start = level.getGameTime() + MusicBoxConfig.START_DELAY_TICKS.getAsInt();
+                musicBox.start(track, start);
+                sendNearby(level, pos, new StartTrackPayload(pos, track, start,
+                        MusicBoxConfig.BROADCAST_RADIUS.getAsInt(), resolved.audioUrl(), resolved.lyrics()));
+            }));
+        } catch (Exception error) {
+            musicBox.stop();
+            MusicBoxMod.LOGGER.warn("Server resolver could not start for {}", track.title(), error);
+            if (requester != null) requester.displayClientMessage(
+                    Component.translatable("message.musicbox.resolve_failed", rootMessage(error)), false);
+            sendNearby(level, pos, new StopTrackPayload(pos));
+        }
+    }
+
+    private static String rootMessage(Throwable error) {
+        Throwable cursor = error;
+        while (cursor.getCause() != null) cursor = cursor.getCause();
+        return cursor.getMessage() == null ? cursor.getClass().getSimpleName() : cursor.getMessage();
     }
 
     private static boolean canControl(ServerPlayer player, net.minecraft.core.BlockPos pos) {

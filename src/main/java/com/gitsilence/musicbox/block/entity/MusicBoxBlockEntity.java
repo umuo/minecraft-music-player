@@ -20,6 +20,7 @@ public final class MusicBoxBlockEntity extends BlockEntity {
     private TrackRef currentTrack;
     private long startGameTime;
     private final List<TrackRef> queue = new ArrayList<>();
+    private long requestGeneration;
 
     public MusicBoxBlockEntity(BlockPos pos, BlockState state) {
         super(MusicBoxMod.MUSIC_BOX_ENTITY.get(), pos, state);
@@ -32,10 +33,15 @@ public final class MusicBoxBlockEntity extends BlockEntity {
     }
 
     public void stop() {
+        requestGeneration++;
         this.currentTrack = null;
         this.startGameTime = 0;
         setChanged();
     }
+
+    public long beginResolution() { return ++requestGeneration; }
+
+    public boolean isCurrentResolution(long generation) { return requestGeneration == generation; }
 
     public boolean enqueue(TrackRef track, int maximum) {
         if (!track.isValid() || queue.size() >= maximum) return false;

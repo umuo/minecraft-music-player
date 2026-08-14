@@ -4,7 +4,7 @@ import java.util.List;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class MusicBoxConfig {
-    public static final ModConfigSpec COMMON_SPEC;
+    public static final ModConfigSpec SERVER_SPEC;
     public static final ModConfigSpec CLIENT_SPEC;
 
     public static final ModConfigSpec.IntValue BROADCAST_RADIUS;
@@ -27,28 +27,25 @@ public final class MusicBoxConfig {
                 .defineInRange("startDelayTicks", 60, 20, 200);
         MAX_QUEUE_SIZE = common.comment("Maximum number of waiting tracks stored by each music box.")
                 .defineInRange("maxQueueSize", 100, 1, 500);
-        REQUIRE_HTTPS = common.comment("Reject non-HTTPS playback URLs, except localhost URLs used for development.")
-                .define("requireHttps", true);
         common.pop();
-        COMMON_SPEC = common.build();
+        common.push("resolver");
+        PLAYBACK_API_URL = common.comment("Server-side LX-compatible resolver endpoint.")
+                .define(ResolverConfigKeys.PLAYBACK_API_URL, "");
+        PLAYBACK_API_TOKEN = common.comment("Optional bearer token. Never synchronized to clients.")
+                .define(ResolverConfigKeys.PLAYBACK_API_TOKEN, "");
+        ALLOWED_AUDIO_HOSTS = common.comment("Allowed final audio CDN hosts; exact hosts and subdomains match.")
+                .defineListAllowEmpty(ResolverConfigKeys.ALLOWED_AUDIO_HOSTS, List.of(), () -> "", value -> value instanceof String);
+        HTTP_TIMEOUT_SECONDS = common.comment("Resolver HTTP timeout in seconds.")
+                .defineInRange(ResolverConfigKeys.HTTP_TIMEOUT_SECONDS, 15, 3, 60);
+        REQUIRE_HTTPS = common.comment("Require HTTPS for resolver and audio URLs (localhost excepted).")
+                .define(ResolverConfigKeys.REQUIRE_HTTPS, true);
+        common.pop();
+        SERVER_SPEC = common.build();
 
         ModConfigSpec.Builder client = new ModConfigSpec.Builder();
-        client.push("resolver");
-        PLAYBACK_API_URL = client.comment(
-                        "HTTP JSON endpoint that resolves a LX-style musicUrl request.",
-                        "Request: {source, action:'musicUrl', info:{type, musicInfo}}",
-                        "Response: {url:'https://...'} or {data:{url:'https://...'}}")
-                .define("playbackApiUrl", "");
-        PLAYBACK_API_TOKEN = client.comment("Optional bearer token. Stored as plain text in the local config file.")
-                .define("playbackApiToken", "");
+        client.push("ui");
         DEFAULT_QUALITY = client.comment("Preferred LX quality: 128k, 320k, flac, or flac24bit.")
-                .define("defaultQuality", "320k", MusicBoxConfig::validQuality);
-        ALLOWED_AUDIO_HOSTS = client.comment(
-                        "Allowed hosts for resolved audio URLs. Exact hosts and subdomains are accepted.",
-                        "The playback API host is always accepted. Keep this list narrow.")
-                .defineListAllowEmpty("allowedAudioHosts", List.of(), () -> "", value -> value instanceof String);
-        HTTP_TIMEOUT_SECONDS = client.comment("Timeout for resolver and audio HTTP requests.")
-                .defineInRange("httpTimeoutSeconds", 15, 3, 60);
+                .define(ResolverConfigKeys.DEFAULT_QUALITY, "320k", MusicBoxConfig::validQuality);
         client.pop();
         CLIENT_SPEC = client.build();
     }

@@ -178,6 +178,16 @@ tasks.register('safeLxUnitTest', JavaExec) {
     mainClass = 'com.gitsilence.musicbox.client.api.SafeLxSourcePolicyTest'
     dependsOn testClasses
 }
+tasks.register('serverResolverUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates server URL policy, response parsing, and config separation.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.server.resolver.ServerResolverTest'
+    dependsOn testClasses
+}
+tasks.named('check').configure {
+    dependsOn queueUnitTest, lyricsUnitTest, spatialAudioUnitTest, safeLxUnitTest, serverResolverUnitTest
+}
 tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false
 }

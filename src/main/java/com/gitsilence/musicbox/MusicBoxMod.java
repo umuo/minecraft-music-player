@@ -50,7 +50,7 @@ public final class MusicBoxMod {
         modEventBus.addListener(this::addCreativeTabContents);
         modEventBus.addListener(MusicBoxNetworking::register);
 
-        container.registerConfig(ModConfig.Type.COMMON, MusicBoxConfig.COMMON_SPEC);
+        container.registerConfig(ModConfig.Type.SERVER, MusicBoxConfig.SERVER_SPEC);
         container.registerConfig(ModConfig.Type.CLIENT, MusicBoxConfig.CLIENT_SPEC);
     }
 

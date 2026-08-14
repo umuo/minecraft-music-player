@@ -34,5 +34,6 @@
   "screen.musicbox.status.history": "最近搜索 %s/%s，点击搜索执行",
   "screen.musicbox.status.error": "错误：%s",
   "message.musicbox.too_far": "你离音乐盒太远了。",
-  "message.musicbox.playback_failed": "歌曲播放失败：%s"
+  "message.musicbox.playback_failed": "歌曲播放失败：%s",
+  "message.musicbox.resolve_failed": "服务器无法解析歌曲：%s"
 }

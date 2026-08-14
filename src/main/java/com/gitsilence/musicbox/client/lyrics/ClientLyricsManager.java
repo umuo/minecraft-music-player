@@ -1,7 +1,6 @@
 package com.gitsilence.musicbox.client.lyrics;
 
 import com.gitsilence.musicbox.MusicBoxMod;
-import com.gitsilence.musicbox.client.api.LxPlaybackResolver;
 import com.gitsilence.musicbox.network.payload.StartTrackPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -20,13 +19,10 @@ public final class ClientLyricsManager {
     private ClientLyricsManager() { }
 
     public static void start(StartTrackPayload payload) {
-        long request = ++generation;
+        ++generation;
         source = payload.pos();
         startGameTime = payload.startGameTime();
-        timeline = LyricTimeline.parse("");
-        new LxPlaybackResolver().resolveLyrics(payload.track()).thenAccept(lrc -> {
-            if (generation == request) timeline = LyricTimeline.parse(lrc);
-        }).exceptionally(error -> null);
+        timeline = LyricTimeline.parse(payload.lyrics());
     }
 
     public static void stop(BlockPos pos) {

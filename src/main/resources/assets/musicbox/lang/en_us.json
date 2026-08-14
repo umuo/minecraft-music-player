@@ -34,5 +34,6 @@
   "screen.musicbox.status.history": "Recent search %s/%s; press Search to run it",
   "screen.musicbox.status.error": "Error: %s",
   "message.musicbox.too_far": "You are too far away from the music box.",
-  "message.musicbox.playback_failed": "Music playback failed: %s"
+  "message.musicbox.playback_failed": "Music playback failed: %s",
+  "message.musicbox.resolve_failed": "Server could not resolve the track: %s"
 }

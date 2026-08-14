@@ -1,6 +1,6 @@
 # Music Box
 
-NeoForge 1.21.1 / Java 21 mod that adds a placeable music box. A server owns the playback state while every nearby client resolves and plays the same HTTP audio stream.
+NeoForge 1.21.1 / Java 21 mod that adds a placeable music box. The server owns playback state and resolves tracks; nearby clients connect directly to the validated audio CDN.
 
 ## Current milestone (0.2.0)
 
@@ -18,7 +18,7 @@ NeoForge 1.21.1 / Java 21 mod that adds a placeable music box. A server owns the
 
 The music box now keeps a server-authoritative, persisted queue with add, remove, skip, clear, and automatic
 track advancement. Track and playlist covers are downloaded asynchronously from allow-listed platform image
-hosts and released with the browser screen. Synchronized LRC lyrics are requested through the private resolver
+hosts and released with the browser screen. Synchronized LRC lyrics are requested by the server through the private resolver
 and rendered above the HUD hotbar. MP3 data is decoded to PCM and played through Minecraft's OpenAL channel at
 the music box position with distance attenuation. Safe LX source compatibility remains a follow-up milestone.
 
@@ -36,22 +36,26 @@ The browser remembers separate queries for every platform/tab during the current
 through the latest eight searches. Use `Up`/`Down` to select, `Enter` to open or play, `Ctrl+F` to focus search,
 and `Esc` to return from a playlist without losing the previous page and scroll position.
 
-Catalog metadata is read from the platforms' public web endpoints. Playback remains separate: every client calls the configured resolver API only after the server accepts and broadcasts a track request.
+Catalog metadata is read from the platforms' public web endpoints. Playback remains separate: a client sends only
+track metadata and intent, the server resolves it, and clients stream the resulting URL directly from the CDN.
 
 ## Playback resolver API
 
-Configure the client in `config/musicbox-client.toml`:
+Configure each server/world in `world/serverconfig/musicbox-server.toml` (the exact world path depends on the host):
 
 ```toml
 [resolver]
 playbackApiUrl = "https://music-api.example.com/v1/music-url"
-playbackApiToken = ""
-defaultQuality = "320k"
+playbackApiToken = "replace-with-server-secret"
 allowedAudioHosts = ["cdn.example.com"]
 httpTimeoutSeconds = 15
+requireHttps = true
 ```
 
-The mod sends a normalized version of LX Music's `musicUrl` request:
+Clients have no resolver URL or token setting. `config/musicbox-client.toml` contains only UI preferences such
+as `defaultQuality`; the bearer token remains solely in the server config and is never encoded in a game packet.
+
+The server sends the following Bridge JSON for both `musicUrl` and `lyric` (only `action` changes):
 
 ```json
 {
@@ -78,7 +82,7 @@ The mod sends a normalized version of LX Music's `musicUrl` request:
 }
 ```
 
-Accepted responses:
+Accepted `musicUrl` responses:
 
 ```json
 {"url":"https://cdn.example.com/audio/123456.mp3"}
@@ -90,15 +94,20 @@ or:
 {"data":{"url":"https://cdn.example.com/audio/123456.mp3"}}
 ```
 
-The current decoder supports MP3 streams. The resolver must return an HTTP(S) URL rather than audio bytes. Redirects are rejected, HTTPS is required outside localhost, and resolved hosts must be explicitly allowed.
+Accepted lyric responses include `{"lyric":"..."}`, `{"lrc":"..."}`, and either field nested under `data`.
+The current decoder supports MP3 streams. The resolver returns JSON, never audio bytes. Server HTTP calls are
+asynchronous and capped at 1 MiB; redirects and unexpected Content-Types are rejected. Resolver and final URLs
+must be HTTP(S), contain a host, and contain no user-info or fragment. HTTPS is required except for loopback
+development endpoints. A final audio host must exactly match or be a subdomain of `allowedAudioHosts`.
+Clients repeat a minimal HTTP(S)/host/user-info/fragment check, then download audio directly from that CDN;
+Minecraft servers never proxy the audio stream.
 
 ### Safe LX compatibility
 
 LX JavaScript sources are deliberately not evaluated in the Minecraft process: a script engine sandbox cannot
 reliably prevent filesystem, network, reflection, or credential access once bridged to Java. Run a source you
-trust in a separately permissioned local bridge and point `playbackApiUrl` at its loopback HTTP endpoint instead.
-The client sends only the documented `musicUrl` and `lyric` actions, never sends the resolver token through the
-game server, rejects redirects and unexpected content types, and caps resolver responses at 1 MiB.
+trust in a separately permissioned local bridge and point the server's `playbackApiUrl` at its loopback endpoint.
+The server sends only the documented `musicUrl` and `lyric` actions and adds the configured bearer token.
 
 A declarative descriptor may be validated by integrations without containing executable code:
 
@@ -114,7 +123,8 @@ A declarative descriptor may be validated by integrations without containing exe
 ./gradlew build
 ```
 
-Both clients and the dedicated server need the mod. Each player configures their own resolver API; credentials are never sent through the Minecraft server.
+Both clients and the dedicated server need the mod. Only the server administrator configures the resolver;
+credentials are neither synchronized nor sent to players.
 
 Run the live catalog integration probe with:
 
