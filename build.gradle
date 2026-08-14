@@ -156,6 +156,13 @@ tasks.register('queueUnitTest', JavaExec) {
     mainClass = 'com.gitsilence.musicbox.playback.TrackRefTest'
     dependsOn testClasses
 }
+tasks.register('lyricsUnitTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates LRC parsing and timeline lookup.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.gitsilence.musicbox.client.lyrics.LyricTimelineTest'
+    dependsOn testClasses
+}
 tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false
 }

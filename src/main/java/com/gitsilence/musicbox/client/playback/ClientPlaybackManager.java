@@ -2,6 +2,7 @@ package com.gitsilence.musicbox.client.playback;
 
 import com.gitsilence.musicbox.MusicBoxMod;
 import com.gitsilence.musicbox.client.api.LxPlaybackResolver;
+import com.gitsilence.musicbox.client.lyrics.ClientLyricsManager;
 import com.gitsilence.musicbox.config.MusicBoxConfig;
 import com.gitsilence.musicbox.network.payload.StartTrackPayload;
 import java.io.InputStream;
@@ -82,6 +83,7 @@ public final class ClientPlaybackManager {
             });
         } finally {
             if (GENERATION.get() == generation) {
+                ClientLyricsManager.stop(payload.pos());
                 player = null;
                 sourcePos = null;
             }
@@ -110,7 +112,9 @@ public final class ClientPlaybackManager {
         GENERATION.incrementAndGet();
         Player current = player;
         player = null;
+        BlockPos stoppedPos = sourcePos;
         sourcePos = null;
+        if (stoppedPos != null) ClientLyricsManager.stop(stoppedPos);
         if (current != null) {
             current.close();
         }

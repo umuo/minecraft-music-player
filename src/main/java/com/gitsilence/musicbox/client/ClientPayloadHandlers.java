@@ -1,6 +1,7 @@
 package com.gitsilence.musicbox.client;
 
 import com.gitsilence.musicbox.client.playback.ClientPlaybackManager;
+import com.gitsilence.musicbox.client.lyrics.ClientLyricsManager;
 import com.gitsilence.musicbox.config.MusicBoxConfig;
 import com.gitsilence.musicbox.network.payload.OpenMusicBoxPayload;
 import com.gitsilence.musicbox.network.payload.RequestTrackPayload;
@@ -36,10 +37,12 @@ public final class ClientPayloadHandlers {
 
     public static void startTrack(StartTrackPayload payload, IPayloadContext context) {
         ClientPlaybackManager.start(payload);
+        ClientLyricsManager.start(payload);
     }
 
     public static void stopTrack(StopTrackPayload payload, IPayloadContext context) {
         ClientPlaybackManager.stop(payload.pos());
+        ClientLyricsManager.stop(payload.pos());
     }
 
     public static void queueState(QueueStatePayload payload, IPayloadContext context) {

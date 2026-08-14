@@ -30,7 +30,7 @@ public final class LxPlaybackResolver {
                 .timeout(timeout())
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(requestJson(track).toString()));
+                .POST(HttpRequest.BodyPublishers.ofString(requestJson(track, "musicUrl").toString()));
         String token = MusicBoxConfig.PLAYBACK_API_TOKEN.get().strip();
         if (!token.isEmpty()) {
             request.header("Authorization", "Bearer " + token);
@@ -38,6 +38,17 @@ public final class LxPlaybackResolver {
 
         return httpClient.sendAsync(request.build(), HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> parseResponse(endpoint, response));
+    }
+
+    public CompletableFuture<String> resolveLyrics(TrackRef track) {
+        URI endpoint = parseEndpoint();
+        HttpRequest.Builder request = HttpRequest.newBuilder(endpoint).timeout(timeout())
+                .header("Accept", "application/json").header("Content-Type", "application/json; charset=utf-8")
+                .POST(HttpRequest.BodyPublishers.ofString(requestJson(track, "lyric").toString()));
+        String token = MusicBoxConfig.PLAYBACK_API_TOKEN.get().strip();
+        if (!token.isEmpty()) request.header("Authorization", "Bearer " + token);
+        return httpClient.sendAsync(request.build(), HttpResponse.BodyHandlers.ofString())
+                .thenApply(LxPlaybackResolver::parseLyrics);
     }
 
     public HttpResponse<java.io.InputStream> openAudio(URI audioUri) throws IOException, InterruptedException {
@@ -65,7 +76,7 @@ public final class LxPlaybackResolver {
         return endpoint;
     }
 
-    private static JsonObject requestJson(TrackRef track) {
+    private static JsonObject requestJson(TrackRef track, String action) {
         JsonObject musicInfo = new JsonObject();
         musicInfo.addProperty("id", track.trackId());
         musicInfo.addProperty("songmid", track.trackId());
@@ -88,9 +99,24 @@ public final class LxPlaybackResolver {
 
         JsonObject root = new JsonObject();
         root.addProperty("source", track.source());
-        root.addProperty("action", "musicUrl");
+        root.addProperty("action", action);
         root.add("info", info);
         return root;
+    }
+
+    static String parseLyrics(HttpResponse<String> response) {
+        if (response.statusCode() < 200 || response.statusCode() >= 300) return "";
+        JsonElement json = JsonParser.parseString(response.body());
+        if (!json.isJsonObject()) return json.isJsonPrimitive() ? json.getAsString() : "";
+        JsonObject object = json.getAsJsonObject();
+        String lyric = stringMember(object, "lyric");
+        if (lyric == null) lyric = stringMember(object, "lrc");
+        if (lyric == null && object.has("data") && object.get("data").isJsonObject()) {
+            JsonObject data = object.getAsJsonObject("data");
+            lyric = stringMember(data, "lyric");
+            if (lyric == null) lyric = stringMember(data, "lrc");
+        }
+        return lyric == null ? "" : lyric;
     }
 
     private static void addHashType(JsonObject types, String quality, String hash) {
