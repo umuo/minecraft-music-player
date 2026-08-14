@@ -54,7 +54,7 @@ public final class MusicBoxBlockEntityRenderer implements BlockEntityRenderer<Mu
         poseStack.pushPose();
         // Move to top center of the music box
         poseStack.translate(0.5, 1.5, 0.5);
-        poseStack.mulPose(camera.rotation());
+        poseStack.mulPose(minecraft.getEntityRenderDispatcher().cameraOrientation());
         poseStack.scale(-0.025F, -0.025F, 0.025F);
 
         Font font = minecraft.font;
@@ -75,16 +75,23 @@ public final class MusicBoxBlockEntityRenderer implements BlockEntityRenderer<Mu
         }
 
         int y = 0;
-        int bgColor = minecraft.options.getBackgroundColor(0.25F);
+        float backgroundOpacity = minecraft.options.getBackgroundOpacity(0.25F);
+        int backgroundColor = (int) (backgroundOpacity * 255.0F) << 24;
+        
         for (int index = 0; index < lines.size(); index++) {
             String clipped = font.plainSubstrByWidth(lines.get(index), MAX_TEXT_WIDTH);
-            int color = index == 0 ? 0xFFFFD700 : (index == 1 ? 0xFFE0E0E0 : 0xFFFFFFFF);
             float x = -font.width(clipped) / 2.0F;
+            int textColor = index == 0 ? 0xFFF2C14E : index == 1 ? 0xFFD8DEE9 : 0xFFF0F1F4;
+            
+            // Background and see-through text
             font.drawInBatch(clipped, x, y, 0x20FFFFFF, false, matrix, bufferSource,
-                    Font.DisplayMode.SEE_THROUGH, bgColor, packedLight);
-            font.drawInBatch(clipped, x, y, color, false, matrix, bufferSource,
-                    Font.DisplayMode.NORMAL, 0, packedLight);
-            y += 10;
+                    Font.DisplayMode.SEE_THROUGH, backgroundColor, net.minecraft.client.renderer.LightTexture.FULL_BRIGHT);
+            
+            // Normal foreground text
+            font.drawInBatch(clipped, x, y, textColor, false, matrix, bufferSource,
+                    Font.DisplayMode.NORMAL, 0, net.minecraft.client.renderer.LightTexture.FULL_BRIGHT);
+            
+            y += index == 1 ? 13 : 11;
         }
 
         poseStack.popPose();
